@@ -14,8 +14,8 @@ Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and 
 
 | Task | Status | PR | Depends on | Outcome |
 |---|---|---|---|---|
-| `GLUE-000` | PR OPEN | [#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) | — | Governance and repository skeleton |
-| `GLUE-010` | NOT STARTED | — | `GLUE-000` | Containerized source/target and fixtures |
+| `GLUE-000` | DONE | [#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) | — | Governance and repository skeleton |
+| `GLUE-010` | PR OPEN | [#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` | Containerized source/target and fixtures |
 | `GLUE-020` | NOT STARTED | — | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
 | `GLUE-030` | NOT STARTED | — | `GLUE-020` | Glue networking, connections, crawler, catalog |
 | `GLUE-040` | NOT STARTED | — | `GLUE-030` | PySpark transformation and MongoDB load |
@@ -59,19 +59,19 @@ PR grouping: PR 2 only
 
 ### To-do
 
-- [ ] Add pinned PostgreSQL and MongoDB Community container images compatible with the lab architecture and Mac/EC2 platforms.
-- [ ] Add health checks and named volumes.
-- [ ] Bind database ports in a way compatible with EC2 private-IP access while relying on security groups for AWS isolation.
-- [ ] Create `sales.orders` and `sales.order_items` with constraints.
-- [ ] Add deterministic valid seed data.
-- [ ] Add isolated invalid fixtures for failure-path tests.
-- [ ] Initialize the MongoDB `migration_lab` database and least-privilege Glue writer user.
-- [ ] Add local container smoke tests.
-- [ ] Add source SQL assertions for counts, keys, foreign keys, decimals, and soft deletes.
-- [ ] Document Apple Silicon compatibility without introducing an alternate architecture.
-- [ ] Complete `docs/runbook/02-START-DATABASES.md` in the same PR, including prerequisites, exact commands, expected output, verification, reset, and focused troubleshooting.
-- [ ] Implement `make local-up`, `make local-status`, `make local-test`, and `make local-down`.
-- [ ] Ensure no secret values are embedded in Compose or initialization files.
+- [x] Add pinned PostgreSQL and MongoDB Community container images compatible with the lab architecture and Mac/EC2 platforms.
+- [x] Add health checks and named volumes.
+- [x] Bind database ports in a way compatible with EC2 private-IP access while relying on security groups for AWS isolation.
+- [x] Create `sales.orders` and `sales.order_items` with constraints.
+- [x] Add deterministic valid seed data.
+- [x] Add isolated invalid fixtures for failure-path tests.
+- [x] Initialize the MongoDB `migration_lab` database and least-privilege Glue writer user.
+- [x] Add local container smoke tests.
+- [x] Add source SQL assertions for counts, keys, foreign keys, decimals, and soft deletes.
+- [x] Document Apple Silicon compatibility without introducing an alternate architecture.
+- [x] Complete `docs/runbook/02-START-DATABASES.md` in the same PR, including prerequisites, exact commands, expected output, verification, reset, and focused troubleshooting.
+- [x] Implement `make local-up`, `make local-status`, `make local-test`, and `make local-down`.
+- [x] Ensure no secret values are embedded in Compose or initialization files.
 
 ### Acceptance
 

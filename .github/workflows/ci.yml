@@ -44,20 +44,15 @@ jobs:
         run: make unit-test
 
   scaffold:
-    name: Compose and Terraform scaffolding
+    name: Compose validation and Terraform scaffolding
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
-      - name: Prove the deferred Compose check fails explicitly
-        run: |
-          if make compose-check >compose.out 2>compose.err; then
-            echo "compose-check unexpectedly succeeded" >&2
-            exit 1
-          fi
-          grep -F "ERROR: make compose-check is not implemented; GLUE-010 must add docker/compose.yaml." compose.err
+      - name: Validate Docker Compose
+        run: make compose-check
       - name: Prove the deferred Terraform check fails explicitly
         run: |
           if make terraform-check >terraform.out 2>terraform.err; then
@@ -65,3 +60,31 @@ jobs:
             exit 1
           fi
           grep -F "ERROR: make terraform-check is not implemented; GLUE-020 must add Terraform configuration." terraform.err
+
+  data-layer:
+    name: Data-layer container smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate ephemeral test credentials
+        run: |
+          umask 077
+          {
+            echo 'DATABASE_BIND_ADDRESS=127.0.0.1'
+            echo 'POSTGRES_DB=sales_lab'
+            echo 'POSTGRES_USER=lab_admin'
+            printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)"
+            echo 'MONGO_INITDB_ROOT_USERNAME=lab_root'
+            printf 'MONGO_INITDB_ROOT_PASSWORD=%s\n' "$(openssl rand -hex 24)"
+            echo 'MONGO_DATABASE=migration_lab'
+            echo 'MONGO_GLUE_USERNAME=glue_writer'
+            printf 'MONGO_GLUE_PASSWORD=%s\n' "$(openssl rand -hex 24)"
+          } >.env
+      - name: Start, verify, and remove the data layer
+        run: |
+          cleanup() { make local-down RESET_VOLUMES=1 || true; }
+          trap cleanup EXIT
+          make compose-check
+          make local-up
+          make local-status
+          make local-test

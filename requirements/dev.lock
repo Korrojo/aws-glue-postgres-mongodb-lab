@@ -8,5 +8,7 @@ pluggy==1.6.0
     # via pytest
 pytest==8.3.5
     # via -r requirements/dev.txt
+pyyaml==6.0.2
+    # via -r requirements/dev.txt
 ruff==0.9.10
     # via -r requirements/dev.txt

@@ -102,6 +102,7 @@ artifacts/
 outputs/
 reports/
 *.generated
+.lab-commit-sha
 
 # Local reconciliation and Glue exports
 validation/output/

@@ -2,6 +2,8 @@
 
 RUFF ?= ruff
 PYTEST ?= pytest
+COMPOSE_FILE := docker/compose.yaml
+COMPOSE := docker compose --env-file .env -f $(COMPOSE_FILE)
 
 .PHONY: help check format-check lint unit-test compose-check terraform-check \
 	local-up local-status local-test local-down \
@@ -15,7 +17,11 @@ help: ## Show governance checks and roadmap-owned future targets.
 		'  make format-check      Check Python formatting' \
 		'  make lint              Lint Python files' \
 		'  make unit-test         Run governance/unit tests' \
-		'  make compose-check     Validate Compose when GLUE-010 adds it' \
+		'  make compose-check     Validate Compose without starting containers' \
+		'  make local-up          Start PostgreSQL and MongoDB and wait for health' \
+		'  make local-status      Show container status' \
+		'  make local-test        Run source, invalid-fixture, and target assertions' \
+		'  make local-down        Stop containers; add RESET_VOLUMES=1 to reseed' \
 		'  make terraform-check   Format/validate Terraform when GLUE-020 adds it' \
 		'' \
 		'Future operational targets fail with their owning roadmap task.'
@@ -31,16 +37,33 @@ lint: ## Lint Python files without modifying files.
 unit-test: ## Run governance and unit tests without AWS or containers.
 	@$(PYTEST) tests/unit -q
 
-compose-check: ## Validate Compose syntax after GLUE-010 supplies configuration.
-	@if [ ! -f docker/compose.yaml ]; then \
-		printf '%s\n' 'ERROR: make compose-check is not implemented; GLUE-010 must add docker/compose.yaml.' >&2; \
-		exit 2; \
-	fi; \
-	if ! command -v docker >/dev/null 2>&1; then \
+compose-check: ## Validate Compose syntax with generated throwaway credentials.
+	@if ! command -v docker >/dev/null 2>&1; then \
 		printf '%s\n' 'ERROR: docker is required to validate docker/compose.yaml.' >&2; \
 		exit 2; \
-	fi; \
-	docker compose -f docker/compose.yaml config --quiet
+	fi
+	@./scripts/compose-check.sh
+
+local-up: ## Start both databases and wait for healthy containers.
+	@test -f .env || { printf '%s\n' 'ERROR: copy .env.example to .env and set all password values.' >&2; exit 2; }
+	@$(COMPOSE) config --quiet
+	@$(COMPOSE) up -d --wait --wait-timeout 180
+
+local-status: ## Show current database container state.
+	@test -f .env || { printf '%s\n' 'ERROR: .env is required for Compose interpolation.' >&2; exit 2; }
+	@$(COMPOSE) ps
+
+local-test: ## Run deterministic source, failure-fixture, and empty-target checks.
+	@test -f .env || { printf '%s\n' 'ERROR: .env is required for data-layer tests.' >&2; exit 2; }
+	@./scripts/test-local-data.sh
+
+local-down: ## Stop containers; set RESET_VOLUMES=1 to remove only project volumes.
+	@test -f .env || { printf '%s\n' 'ERROR: .env is required for exact Compose project resolution.' >&2; exit 2; }
+	@if [ "$(RESET_VOLUMES)" = "1" ]; then \
+		$(COMPOSE) down --volumes --remove-orphans; \
+	else \
+		$(COMPOSE) down --remove-orphans; \
+	fi
 
 terraform-check: ## Format and validate Terraform after GLUE-020 supplies configuration.
 	@set -- infrastructure/terraform/*.tf; \
@@ -60,9 +83,6 @@ define fail_not_implemented
 	@printf '%s\n' 'ERROR: make $@ is not implemented; owned by roadmap task $(1).' >&2
 	@exit 2
 endef
-
-local-up local-status local-test local-down:
-	$(call fail_not_implemented,GLUE-010)
 
 doctor infra-init infra-plan infra-apply secrets-put ec2-bootstrap:
 	$(call fail_not_implemented,GLUE-020)
