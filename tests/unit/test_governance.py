@@ -28,7 +28,6 @@ UNIMPLEMENTED_TARGETS = {
     "validate": "GLUE-050",
     "rerun-test": "GLUE-050",
     "cost-check": "GLUE-060",
-    "destroy-lab": "GLUE-060",
 }
 
 
@@ -132,7 +131,7 @@ def test_design_blueprint_directories_exist_without_future_components() -> None:
         assert not (ROOT / relative_path).exists()
 
 
-def test_roadmap_records_prior_merges_and_only_glue_020_active() -> None:
+def test_roadmap_records_foundation_merge_and_only_glue_025_active() -> None:
     roadmap = (ROOT / "docs/project/ROADMAP.md").read_text()
 
     expected_status = (
@@ -150,13 +149,21 @@ def test_roadmap_records_prior_merges_and_only_glue_020_active() -> None:
     )[0]
     assert "- [ ]" not in glue_010_section
     glue_020_status = (
-        "| `GLUE-020` | PR OPEN | "
+        "| `GLUE-020` | MERGED — PENDING LIVE VALIDATION | "
         "[#3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) | `GLUE-010` |"
     )
     assert glue_020_status in roadmap
     glue_020_section = roadmap.split("## `GLUE-020`", maxsplit=1)[1].split(
-        "## `GLUE-030`", maxsplit=1
+        "## `GLUE-025`", maxsplit=1
     )[0]
     assert "- [ ]" not in glue_020_section
+    assert (
+        "| `GLUE-025` | PR OPEN | "
+        "[#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) | `GLUE-020` |"
+    ) in roadmap
+    glue_025_section = roadmap.split("## `GLUE-025`", maxsplit=1)[1].split(
+        "## `GLUE-030`", maxsplit=1
+    )[0]
+    assert "- [ ]" not in glue_025_section
     for task_number in range(30, 61, 10):
         assert f"| `GLUE-{task_number:03d}` | NOT STARTED |" in roadmap

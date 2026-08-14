@@ -1,6 +1,6 @@
 # 02 — Start and Verify the Databases
 
-Owners: `GLUE-010`, finalized by `GLUE-020`  
+Owners: `GLUE-010`, finalized by `GLUE-020`; rotation correction by `GLUE-025`
 Status: implemented by `GLUE-010` and `GLUE-020`
 
 PostgreSQL and MongoDB run together on the disposable EC2 instance for the core lab. The Mac path at the end is optional and exists only for a quick developer smoke test. Both paths use the same Compose file, initialization scripts, deterministic fixtures, and assertions.
@@ -41,7 +41,7 @@ Use the SSM invocation output and the read-only commands in runbook 01 Step 8. D
 
 **Repeat, reset, or rollback**
 
-The command is safe to rerun. Use the project-scoped `make local-down RESET_VOLUMES=1` through SSM before a deliberate clean reseed.
+The command is safe to rerun while secret values are unchanged. After `make secrets-put` rotates values for initialized named volumes, run `make ec2-reset-data`; `make ec2-bootstrap` alone does not rotate credentials stored inside those volumes.
 
 **If it fails**
 
@@ -49,7 +49,7 @@ Continue with the manual diagnostic steps below; they expose each prerequisite a
 
 **Next**
 
-After success, retain the recorded Git SHA and continue to runbook 03 only after GLUE-020 is merged.
+After success, retain the recorded Git SHA. Continue to runbook 03 only after `GLUE-025` is reviewed and its personal-account live-validation sequence succeeds.
 
 ## Manual EC2 diagnostic path
 
@@ -229,7 +229,7 @@ Pass: the command prints only `database environment: PASS`.
 
 **Repeat, reset, or rollback**
 
-Safe to repeat after secret rotation; the command replaces `.env`. Keep it only through the immediately following Compose operation, then remove it as shown in Step 4. Temporary secret files must not survive the database operation.
+Safe to repeat because the command replaces `.env`, but replacing `.env` does not change credentials already stored in initialized named volumes. After secret rotation, use `make ec2-reset-data` from the Mac rather than plain `make ec2-bootstrap`. Keep `.env` only through the immediately following Compose operation, then remove it as shown in Step 4. Temporary secret files must not survive the database operation.
 
 **If it fails**
 
@@ -463,7 +463,7 @@ Repeating the block always returns the disposable data layer to the committed ba
 
 **If it fails**
 
-Run `docker compose --env-file .env -f docker/compose.yaml ps -a` and the focused service logs. Correct the initializer or credential mismatch, then repeat the full reset block.
+Run `docker compose --env-file .env -f docker/compose.yaml ps -a` and the focused service logs. Correct the initializer or credential mismatch, then repeat the full reset block. From the Mac, the supported SSM equivalent is `make ec2-reset-data`; it resolves the exact instance from Terraform state and performs this same fixed-project reset without printing current secrets.
 
 **Next**
 

@@ -150,6 +150,8 @@ def test_glue_020_scripts_are_strict_scoped_and_nonsecret() -> None:
         "put-lab-secrets.sh",
         "run-ssm-bootstrap.sh",
         "terraform-apply.sh",
+        "terraform-destroy-plan.sh",
+        "terraform-destroy.sh",
         "terraform-plan.sh",
     }
     scripts = ROOT / "scripts"
@@ -207,6 +209,9 @@ def test_make_ci_and_runbooks_own_the_glue_020_workflow() -> None:
         "infra-apply",
         "secrets-put",
         "ec2-bootstrap",
+        "ec2-reset-data",
+        "destroy-plan",
+        "destroy-lab",
     ):
         assert f"{target}:" in makefile
     assert "doctor infra-init infra-plan infra-apply secrets-put ec2-bootstrap:" not in makefile

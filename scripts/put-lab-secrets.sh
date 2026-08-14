@@ -80,3 +80,4 @@ PY
 printf 'Stored fresh generated values in the two %s secret containers.\n' \
   'aws-glue-postgres-mongodb-lab'
 printf 'No secret value was printed.\n'
+printf 'If databases already use named volumes, run make ec2-reset-data; make ec2-bootstrap alone does not rotate initialized database credentials.\n'
