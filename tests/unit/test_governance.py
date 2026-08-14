@@ -22,12 +22,6 @@ RUNBOOKS = [
 ]
 
 UNIMPLEMENTED_TARGETS = {
-    "doctor": "GLUE-020",
-    "infra-init": "GLUE-020",
-    "infra-plan": "GLUE-020",
-    "infra-apply": "GLUE-020",
-    "secrets-put": "GLUE-020",
-    "ec2-bootstrap": "GLUE-020",
     "deploy": "GLUE-030",
     "crawl": "GLUE-030",
     "run": "GLUE-040",
@@ -114,19 +108,6 @@ def test_future_make_target_fails_with_roadmap_owner(target: str, owner: str) ->
     )
 
 
-@pytest.mark.parametrize(
-    ("target", "owner"),
-    [("terraform-check", "GLUE-020")],
-)
-def test_scaffold_validation_fails_explicitly_until_owned_configuration_exists(
-    target: str, owner: str
-) -> None:
-    result = run_make(target)
-
-    assert result.returncode != 0
-    assert f"ERROR: make {target} is not implemented; {owner} must add" in result.stderr
-
-
 def test_design_blueprint_directories_exist_without_future_components() -> None:
     expected_directories = [
         "docker/mongodb/init",
@@ -151,7 +132,7 @@ def test_design_blueprint_directories_exist_without_future_components() -> None:
         assert not (ROOT / relative_path).exists()
 
 
-def test_roadmap_records_glue_000_merged_and_only_glue_010_pr_open() -> None:
+def test_roadmap_records_prior_merges_and_only_glue_020_active() -> None:
     roadmap = (ROOT / "docs/project/ROADMAP.md").read_text()
 
     expected_status = (
@@ -160,7 +141,7 @@ def test_roadmap_records_glue_000_merged_and_only_glue_010_pr_open() -> None:
     )
     assert expected_status in roadmap
     glue_010_status = (
-        "| `GLUE-010` | PR OPEN | "
+        "| `GLUE-010` | DONE | "
         "[#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` |"
     )
     assert glue_010_status in roadmap
@@ -168,5 +149,6 @@ def test_roadmap_records_glue_000_merged_and_only_glue_010_pr_open() -> None:
         "## `GLUE-020`", maxsplit=1
     )[0]
     assert "- [ ]" not in glue_010_section
-    for task_number in range(20, 61, 10):
+    assert "| `GLUE-020` | IN PROGRESS | — | `GLUE-010` |" in roadmap
+    for task_number in range(30, 61, 10):
         assert f"| `GLUE-{task_number:03d}` | NOT STARTED |" in roadmap
