@@ -409,8 +409,9 @@ def test_governance_makes_aws_execution_exclusively_user_run() -> None:
     assert "| `GLUE-025` | DONE | [#4]" in roadmap
     assert "| `GLUE-030` | DONE | [#5]" in roadmap
     assert "| `GLUE-040` | DONE | [#5]" in roadmap
-    assert "| `GLUE-050` | IN PROGRESS | PR #6 PLACEHOLDER |" in roadmap
-    assert "| `GLUE-060` | IN PROGRESS | PR #6 PLACEHOLDER |" in roadmap
+    assert "| `GLUE-050` | DONE | [#6]" in roadmap
+    assert "| `GLUE-060` | DONE | [#6]" in roadmap
+    assert "PR #6 PLACEHOLDER" not in roadmap
 
     acceptance = read("docs/project/ACCEPTANCE_CRITERIA.md")
     assert "User-run-only rerun behavior (optional lab evidence)" in acceptance

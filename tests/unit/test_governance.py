@@ -122,7 +122,8 @@ def test_roadmap_records_merged_foundation_and_grouped_glue_work() -> None:
     for task in ("GLUE-030", "GLUE-040"):
         assert f"| `{task}` | DONE | [#5]" in roadmap
     for task in ("GLUE-050", "GLUE-060"):
-        assert f"| `{task}` | IN PROGRESS | PR #6 PLACEHOLDER |" in roadmap
+        assert f"| `{task}` | DONE | [#6]" in roadmap
+    assert "PR #6 PLACEHOLDER" not in roadmap
 
 
 def test_governance_separates_local_command_proof_from_optional_user_run_evidence() -> None:
