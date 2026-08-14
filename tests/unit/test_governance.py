@@ -22,10 +22,6 @@ RUNBOOKS = [
 ]
 
 UNIMPLEMENTED_TARGETS = {
-    "local-up": "GLUE-010",
-    "local-status": "GLUE-010",
-    "local-test": "GLUE-010",
-    "local-down": "GLUE-010",
     "doctor": "GLUE-020",
     "infra-init": "GLUE-020",
     "infra-plan": "GLUE-020",
@@ -90,7 +86,22 @@ def test_environment_example_contains_only_safe_nonsecret_inputs() -> None:
         for line in (ROOT / ".env.example").read_text().splitlines()
         if line and not line.startswith("#")
     ]
-    assert lines == ["AWS_PROFILE=your-personal-aws-profile", "AWS_REGION=us-east-1"]
+    values = dict(line.split("=", 1) for line in lines)
+
+    assert values == {
+        "AWS_PROFILE": "your-personal-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "DATABASE_BIND_ADDRESS": "127.0.0.1",
+        "POSTGRES_DB": "sales_lab",
+        "POSTGRES_USER": "lab_admin",
+        "POSTGRES_PASSWORD": "",
+        "MONGO_INITDB_ROOT_USERNAME": "lab_root",
+        "MONGO_INITDB_ROOT_PASSWORD": "",
+        "MONGO_DATABASE": "migration_lab",
+        "MONGO_GLUE_USERNAME": "glue_writer",
+        "MONGO_GLUE_PASSWORD": "",
+    }
+    assert all("://" not in value for value in values.values())
 
 
 @pytest.mark.parametrize(("target", "owner"), UNIMPLEMENTED_TARGETS.items())
@@ -105,7 +116,7 @@ def test_future_make_target_fails_with_roadmap_owner(target: str, owner: str) ->
 
 @pytest.mark.parametrize(
     ("target", "owner"),
-    [("compose-check", "GLUE-010"), ("terraform-check", "GLUE-020")],
+    [("terraform-check", "GLUE-020")],
 )
 def test_scaffold_validation_fails_explicitly_until_owned_configuration_exists(
     target: str, owner: str
@@ -131,7 +142,6 @@ def test_design_blueprint_directories_exist_without_future_components() -> None:
         assert (ROOT / relative_path).is_dir()
 
     future_files = [
-        "docker/compose.yaml",
         "glue/jobs/postgres_orders_to_mongodb.py",
         "src/glue_lab/transformations.py",
         "src/glue_lab/validation.py",
@@ -141,13 +151,14 @@ def test_design_blueprint_directories_exist_without_future_components() -> None:
         assert not (ROOT / relative_path).exists()
 
 
-def test_roadmap_preserves_only_glue_000_as_active() -> None:
+def test_roadmap_records_glue_000_merged_and_only_glue_010_active() -> None:
     roadmap = (ROOT / "docs/project/ROADMAP.md").read_text()
 
     expected_status = (
-        "| `GLUE-000` | PR OPEN | "
+        "| `GLUE-000` | DONE | "
         "[#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) |"
     )
     assert expected_status in roadmap
-    for task_number in range(10, 61, 10):
+    assert "| `GLUE-010` | IN PROGRESS | — | `GLUE-000` |" in roadmap
+    for task_number in range(20, 61, 10):
         assert f"| `GLUE-{task_number:03d}` | NOT STARTED |" in roadmap

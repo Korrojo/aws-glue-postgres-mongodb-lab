@@ -14,8 +14,8 @@ Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and 
 
 | Task | Status | PR | Depends on | Outcome |
 |---|---|---|---|---|
-| `GLUE-000` | PR OPEN | [#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) | — | Governance and repository skeleton |
-| `GLUE-010` | NOT STARTED | — | `GLUE-000` | Containerized source/target and fixtures |
+| `GLUE-000` | DONE | [#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) | — | Governance and repository skeleton |
+| `GLUE-010` | IN PROGRESS | — | `GLUE-000` | Containerized source/target and fixtures |
 | `GLUE-020` | NOT STARTED | — | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
 | `GLUE-030` | NOT STARTED | — | `GLUE-020` | Glue networking, connections, crawler, catalog |
 | `GLUE-040` | NOT STARTED | — | `GLUE-030` | PySpark transformation and MongoDB load |

@@ -1,0 +1,50 @@
+name: aws-glue-postgres-mongodb-lab
+
+services:
+  postgres:
+    image: postgres:16.15-bookworm@sha256:60f4761b9035e0b8d5218f701a8c3382f641bf12b1604822574cf5be3baeb537
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "${DATABASE_BIND_ADDRESS:-127.0.0.1}:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./postgres/invalid:/lab-invalid-fixtures:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mongodb:
+    image: mongo:8.0.29-noble@sha256:43f6e6733f0f0647bcc896cd7b4ee6e0e4872e65a1e6de27ea935efd43120a70
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?set MONGO_INITDB_ROOT_USERNAME in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?set MONGO_INITDB_ROOT_PASSWORD in .env}
+      MONGO_DATABASE: ${MONGO_DATABASE:?set MONGO_DATABASE in .env}
+      MONGO_GLUE_USERNAME: ${MONGO_GLUE_USERNAME:?set MONGO_GLUE_USERNAME in .env}
+      MONGO_GLUE_PASSWORD: ${MONGO_GLUE_PASSWORD:?set MONGO_GLUE_PASSWORD in .env}
+    ports:
+      - "${DATABASE_BIND_ADDRESS:-127.0.0.1}:27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --username "$${MONGO_INITDB_ROOT_USERNAME}"
+          --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin
+          --eval 'quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)' >/dev/null
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  postgres_data:
+  mongodb_data:
