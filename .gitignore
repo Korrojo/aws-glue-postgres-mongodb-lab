@@ -103,6 +103,7 @@ outputs/
 reports/
 *.generated
 .lab-commit-sha
+infrastructure/terraform/.tfplan.identity.json
 
 # Local reconciliation and Glue exports
 validation/output/

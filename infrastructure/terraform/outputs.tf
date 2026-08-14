@@ -3,6 +3,11 @@ output "aws_region" {
   value       = var.aws_region
 }
 
+output "aws_account_id" {
+  description = "Account bound to this local Terraform state; used by mutation safety checks."
+  value       = data.aws_caller_identity.current.account_id
+}
+
 output "vpc_id" {
   description = "Dedicated lab VPC ID."
   value       = aws_vpc.lab.id

@@ -33,7 +33,7 @@ make ec2-bootstrap
 
 **Expected result**
 
-The SSM invocation ends with `aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS`, both containers are healthy, deterministic counts pass, all invalid fixtures are rejected, and `.lab-commit-sha` matches the EC2 checkout.
+The SSM invocation ends with `aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS`, both containers are healthy, deterministic counts pass, all invalid fixtures are rejected, `.lab-commit-sha` matches the EC2 checkout, and the temporary `.env` is absent.
 
 **Verify**
 
@@ -130,7 +130,7 @@ Retrieve the two lab secret values with the EC2 instance role and write the exac
   - `/aws-glue-postgres-mongodb-lab/postgres`
   - `/aws-glue-postgres-mongodb-lab/mongodb`
 - The PostgreSQL secret JSON contains `username`, `password`, and `database`.
-- The MongoDB secret JSON contains `root_username`, `root_password`, `glue_username`, `glue_password`, and `database`.
+- The MongoDB secret JSON contains `root_username`, `root_password`, `username`, `password`, and `database`.
 - `AWS_REGION` is `us-east-1`.
 
 **Inputs**
@@ -170,8 +170,8 @@ required_postgres = {"username", "password", "database"}
 required_mongodb = {
     "root_username",
     "root_password",
-    "glue_username",
-    "glue_password",
+    "username",
+    "password",
     "database",
 }
 if not required_postgres <= postgres.keys() or not required_mongodb <= mongodb.keys():
@@ -184,8 +184,8 @@ lines = {
     "MONGO_INITDB_ROOT_USERNAME": mongodb["root_username"],
     "MONGO_INITDB_ROOT_PASSWORD": mongodb["root_password"],
     "MONGO_DATABASE": mongodb["database"],
-    "MONGO_GLUE_USERNAME": mongodb["glue_username"],
-    "MONGO_GLUE_PASSWORD": mongodb["glue_password"],
+    "MONGO_GLUE_USERNAME": mongodb["username"],
+    "MONGO_GLUE_PASSWORD": mongodb["password"],
 }
 if any(not str(value) for value in lines.values()):
     raise SystemExit("secret JSON contains an empty required value")
@@ -229,7 +229,7 @@ Pass: the command prints only `database environment: PASS`.
 
 **Repeat, reset, or rollback**
 
-Safe to repeat after secret rotation; the command replaces `.env`. Remove local material with `rm -f .env /tmp/glue-lab-postgres.json /tmp/glue-lab-mongodb.json` when the lab is destroyed.
+Safe to repeat after secret rotation; the command replaces `.env`. Keep it only through the immediately following Compose operation, then remove it as shown in Step 4. Temporary secret files must not survive the database operation.
 
 **If it fails**
 
@@ -329,19 +329,22 @@ No new input is required.
 
 ```bash
 make local-test
+make local-test
+rm -f .env
 ```
 
 **Expected result**
 
-The seed upsert runs again without changing row counts. PostgreSQL reports 5 total orders, 4 active orders, 9 total items, and 7 active items belonging to active orders. Four invalid fixtures are rejected. MongoDB authenticates as the lab writer and reports zero order documents. The final line is `local data assertions: PASS`.
+Both test runs preserve the deterministic counts: 5 total orders, 4 active orders, 9 total items, and 7 active items belonging to active orders. Four invalid fixtures are rejected. MongoDB authenticates as the lab writer and reports zero order documents. The final line of each run is `local data assertions: PASS`; the temporary `.env` is then deleted immediately.
 
 **Verify**
 
 ```bash
-make local-test
+test ! -e .env
+docker ps --filter label=com.docker.compose.project=aws-glue-postgres-mongodb-lab   --format '{{.Names}} {{.Status}}'
 ```
 
-Pass: the second identical run also exits `0` with the same counts and final pass line.
+Pass: `.env` is absent and both project containers remain healthy.
 
 **Repeat, reset, or rollback**
 
@@ -374,7 +377,7 @@ Step 4 passed.
 
 **Inputs**
 
-No new input is required.
+Repeat Step 2 to create a fresh mode-`0600` `.env` from Secrets Manager for this operation only.
 
 **Command**
 
@@ -382,6 +385,7 @@ No new input is required.
 make local-down
 make local-up
 make local-test
+rm -f .env
 ```
 
 **Expected result**
@@ -421,6 +425,7 @@ Remove only this project’s containers and named volumes, then rebuild from the
 **Prerequisites**
 
 - You intend to delete all disposable PostgreSQL and MongoDB data in this lab project.
+- Repeat Step 2 to create a fresh mode-`0600` `.env` for this operation only.
 - `docker compose --env-file .env -f docker/compose.yaml config --format json` reports project name `aws-glue-postgres-mongodb-lab`.
 
 **Inputs**
@@ -437,6 +442,7 @@ export RESET_VOLUMES=1
 make local-down RESET_VOLUMES=1
 make local-up
 make local-test
+rm -f .env
 ```
 
 **Expected result**

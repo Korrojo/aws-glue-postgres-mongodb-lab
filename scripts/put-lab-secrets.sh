@@ -20,13 +20,33 @@ for command_name in "$terraform_bin" "$aws_cli" python3; do
   fi
 done
 
-postgres_secret="$($terraform_bin -chdir="$tf_root" output -raw postgres_secret_name)"
-mongodb_secret="$($terraform_bin -chdir="$tf_root" output -raw mongodb_secret_name)"
-database_host="$($terraform_bin -chdir="$tf_root" output -raw database_private_ip)"
-
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 umask 077
+
+"$aws_cli" --profile "$AWS_PROFILE" --region "$aws_region" sts get-caller-identity \
+  --output json > "$tmp_dir/identity.json"
+current_account="$(python3 - "$tmp_dir/identity.json" <<'PY'
+import json
+import pathlib
+import sys
+print(json.loads(pathlib.Path(sys.argv[1]).read_text())["Account"])
+PY
+)"
+state_account="$($terraform_bin -chdir="$tf_root" output -raw aws_account_id)"
+state_region="$($terraform_bin -chdir="$tf_root" output -raw aws_region)"
+if [[ "$current_account" != "$state_account" ]]; then
+  printf 'ERROR: current AWS account does not match Terraform state.\n' >&2
+  exit 1
+fi
+if [[ "$aws_region" != "$state_region" ]]; then
+  printf 'ERROR: current AWS Region does not match Terraform state.\n' >&2
+  exit 1
+fi
+
+postgres_secret="$($terraform_bin -chdir="$tf_root" output -raw postgres_secret_name)"
+mongodb_secret="$($terraform_bin -chdir="$tf_root" output -raw mongodb_secret_name)"
+database_host="$($terraform_bin -chdir="$tf_root" output -raw database_private_ip)"
 
 python3 - "$tmp_dir/postgres.json" "$tmp_dir/mongodb.json" "$database_host" <<'PY'
 import json

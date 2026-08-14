@@ -56,6 +56,7 @@ def test_foundation_has_one_lab_path_and_no_forbidden_enterprise_components() ->
 
 def test_network_rules_allow_only_glue_to_reach_database_ports() -> None:
     text = terraform_text()
+    types = resource_types()
 
     for name in ("glue", "database-host", "endpoint"):
         assert re.search(rf'name\s*=\s*"{name}"', text)
@@ -71,7 +72,10 @@ def test_network_rules_allow_only_glue_to_reach_database_ports() -> None:
         >= 3
     )
     assert not re.search(r"from_port\s*=\s*22", text)
-    assert 'cidr_ipv4                    = "0.0.0.0/0"' not in text
+    assert types.count("aws_vpc_security_group_ingress_rule") == 5
+    assert "ingress {" not in text
+    assert "cidr_ipv4" not in text
+    assert "cidr_ipv6" not in text
     assert "self-referencing All TCP" in text
 
 
@@ -97,7 +101,6 @@ def test_storage_secrets_iam_and_ec2_follow_the_design() -> None:
         "aws_s3_bucket_lifecycle_configuration",
         "aws_iam_instance_profile",
         "AmazonSSMManagedInstanceCore",
-        "AWSGlueServiceRole",
         "associate_public_ip_address = true",
         'instance_type               = "t3.medium"',
         "encrypted   = true",
@@ -106,13 +109,26 @@ def test_storage_secrets_iam_and_ec2_follow_the_design() -> None:
     ):
         assert required in text
 
+    for action in (
+        "ec2:CreateNetworkInterface",
+        "ec2:DeleteNetworkInterface",
+        "ec2:DescribeNetworkInterfaces",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "cloudwatch:PutMetricData",
+    ):
+        assert action in text
+    assert "AWSGlueServiceRole" not in text
+    assert '"glue:*"' not in text
+
     assert re.search(r'name\s*=\s*"/\$\{local\.project_name\}/postgres"', text)
     assert re.search(r'name\s*=\s*"/\$\{local\.project_name\}/mongodb"', text)
     assert "secret_string" not in text
 
     for required in (
         "set -euo pipefail",
-        "dnf install -y docker git",
+        "dnf install -y docker git make python3",
         "systemctl enable --now docker",
         'git clone --branch "${repository_ref}"',
         "/opt/aws-glue-postgres-mongodb-lab",
@@ -120,6 +136,7 @@ def test_storage_secrets_iam_and_ec2_follow_the_design() -> None:
         "bootstrap-complete",
     ):
         assert required in user_data
+    assert "dnf install -y curl" not in user_data
 
 
 def test_glue_020_scripts_are_strict_scoped_and_nonsecret() -> None:
@@ -127,6 +144,9 @@ def test_glue_020_scripts_are_strict_scoped_and_nonsecret() -> None:
         "bootstrap-ec2.sh",
         "configure-ec2-github-write.sh",
         "put-lab-secrets.sh",
+        "run-ssm-bootstrap.sh",
+        "terraform-apply.sh",
+        "terraform-plan.sh",
     }
     scripts = ROOT / "scripts"
     assert expected <= {path.name for path in scripts.iterdir() if path.is_file()}
@@ -142,10 +162,32 @@ def test_glue_020_scripts_are_strict_scoped_and_nonsecret() -> None:
     assert "secrets.token_hex" in secret_script
     assert "put-secret-value" in secret_script
     assert "SecretString" not in secret_script
+    assert "get-caller-identity" in secret_script
+    assert "aws_account_id" in secret_script
+    assert "does not match Terraform state" in secret_script
+
+    plan_script = (scripts / "terraform-plan.sh").read_text()
+    apply_script = (scripts / "terraform-apply.sh").read_text()
+    for content in (plan_script, apply_script):
+        assert "get-caller-identity" in content
+        assert "AWS_PROFILE" in content
+        assert "plan_sha256" in content
+        assert "git_sha" in content
+    assert "account does not match the reviewed plan" in apply_script
+
+    bootstrap_script = (scripts / "bootstrap-ec2.sh").read_text()
+    assert 'rm -f "$env_file"' in bootstrap_script
+
+    ssm_script = (scripts / "run-ssm-bootstrap.sh").read_text()
+    assert "ssm wait command-executed" not in ssm_script
+    assert "deadline=" in ssm_script
+    assert "sleep 10" in ssm_script
 
     deploy_key_script = (scripts / "configure-ec2-github-write.sh").read_text()
     assert "ssh-keygen -t ed25519" in deploy_key_script
     assert "id_ed25519.pub" in deploy_key_script
+    assert "core.sshCommand" in deploy_key_script
+    assert "known_hosts" in deploy_key_script
     assert 'cat "$private_key"' not in deploy_key_script
     assert "git push origin main" not in deploy_key_script
 
@@ -166,6 +208,8 @@ def test_make_ci_and_runbooks_own_the_glue_020_workflow() -> None:
     assert "doctor infra-init infra-plan infra-apply secrets-put ec2-bootstrap:" not in makefile
     assert "Terraform AWS foundation tests" in workflow
     assert "terraform test" in workflow
+    assert "./scripts/terraform-plan.sh" in makefile
+    assert "./scripts/terraform-apply.sh" in makefile
 
     prerequisites = (ROOT / "docs/runbook/00-PREREQUISITES.md").read_text()
     infrastructure = (ROOT / "docs/runbook/01-DEPLOY-INFRASTRUCTURE.md").read_text()
@@ -208,3 +252,21 @@ def test_infrastructure_mutation_targets_fail_closed_without_explicit_inputs() -
     )
     assert apply.returncode != 0
     assert "ERROR: set APPROVE_LAB_APPLY=1" in apply.stderr
+
+    unbound_apply = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "infra-apply",
+            "APPROVE_LAB_APPLY=1",
+            "AWS_PROFILE=",
+            "AWS_REGION=",
+            "TERRAFORM=true",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert unbound_apply.returncode != 0
+    assert "ERROR: AWS_PROFILE is required." in unbound_apply.stderr

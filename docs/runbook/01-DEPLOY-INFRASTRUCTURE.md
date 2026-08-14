@@ -216,7 +216,7 @@ terraform -chdir=infrastructure/terraform show tfplan
 
 **Expected result**
 
-The saved plan contains only project-tagged resources described in Step 2. It resolves an Amazon Linux 2023 AMI from the public SSM parameter. It contains no database password, MongoDB password, private deploy key, public inbound database rule, SSH rule, NAT Gateway, EIP, Glue job, or scheduled resource.
+The saved plan contains only project-tagged resources described in Step 2. It resolves an Amazon Linux 2023 AMI from the public SSM parameter. It contains no database password, MongoDB password, private deploy key, public inbound database rule, SSH rule, NAT Gateway, EIP, Glue job, or scheduled resource. `make infra-plan` also writes ignored mode-`0600` metadata binding the plan hash to the current AWS account, profile, Region, and Git SHA.
 
 **Verify**
 
@@ -241,7 +241,7 @@ terraform -chdir=infrastructure/terraform show -json tfplan > /tmp/aws-glue-lab-
 
 **Repeat, reset, or rollback**
 
-Re-running `make infra-plan` replaces only the ignored `tfplan`. Delete `/tmp/aws-glue-lab-plan.json` after review. If code, profile, Region, or Git ref changes, discard the old plan and create a new one.
+Re-running `make infra-plan` replaces the ignored `tfplan` and `.tfplan.identity.json` together. Delete `/tmp/aws-glue-lab-plan.json` after review. If code, profile, Region, Git ref, plan bytes, or account changes, discard both artifacts and create a new plan.
 
 **If it fails**
 
@@ -280,7 +280,7 @@ APPROVE_LAB_APPLY=1 make infra-apply
 
 **Expected result**
 
-Terraform applies the saved plan and prints nonsensitive outputs for the VPC, subnet, security groups, bucket name, secret names, EC2 instance ID/private IP, and Glue role ARN. Do not copy those live identifiers into tracked files or public PR evidence.
+Before Terraform can mutate AWS, the apply script re-resolves STS and verifies the account, profile name, Region, Git SHA, and SHA-256 plan hash against the private metadata saved in Step 4. A mismatch fails closed. On success Terraform applies the saved plan and prints nonsensitive outputs; do not copy live identifiers into tracked files or public PR evidence.
 
 **Verify**
 
@@ -293,7 +293,7 @@ The second command exits `0` with no changes. Exit `2` means drift or a changed 
 
 **Repeat, reset, or rollback**
 
-`infra-apply` consumes only the saved plan and refuses to run without the explicit gate. Re-plan before a later apply. Do not run `terraform destroy` here; final destruction belongs to [06 — Destroy](06-DESTROY.md).
+`infra-apply` consumes only the identity-bound saved plan and refuses to run without the explicit gate, profile, Region, clean matching Git SHA, matching STS account, and unchanged plan hash. Re-plan before a later apply. Do not run `terraform destroy` here; final destruction belongs to [06 — Destroy](06-DESTROY.md).
 
 **If it fails**
 
@@ -418,7 +418,7 @@ aws secretsmanager describe-secret --profile "$AWS_PROFILE" --region "$AWS_REGIO
 
 **Repeat, reset, or rollback**
 
-Re-running `make secrets-put` deliberately rotates both values. After rotation, rerun `make ec2-bootstrap` so the ignored EC2 `.env` and containers use the new values.
+Re-running `make secrets-put` first proves the current STS account and Region match Terraform state, then deliberately rotates both values. After rotation, rerun `make ec2-bootstrap`; its temporary EC2 `.env` is deleted immediately after startup and tests.
 
 **If it fails**
 
@@ -432,7 +432,7 @@ Start and test the databases through SSM.
 
 **Purpose**
 
-Retrieve secrets on EC2, write a private ignored `.env`, start both pinned containers, and run the deterministic data-layer tests without SSH.
+Retrieve secrets on EC2, write a temporary mode-`0600` `.env`, start both pinned containers, run deterministic tests, and delete the environment file immediately without SSH.
 
 **Run from**
 
@@ -462,19 +462,21 @@ The SSM command succeeds. On EC2 it:
 2. retrieves both secrets using the instance role without printing them;
 3. writes `.env` with mode `0600` and binds database ports on the EC2 interface;
 4. runs `make local-up` and `make local-test`;
-5. records the exact checked-out Git SHA in `.lab-commit-sha`;
-6. reports `aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS`.
+5. deletes `.env` immediately on success or failure;
+6. records the exact checked-out Git SHA in `.lab-commit-sha`;
+7. reports `aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS`.
 
 **Verify**
 
 ```bash
 instance_id="$(terraform -chdir=infrastructure/terraform output -raw database_instance_id)"
-aws ssm send-command --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-  --instance-ids "$instance_id" --document-name AWS-RunShellScript \
-  --parameters 'commands=["sudo -u ec2-user bash -lc '\''cd /opt/aws-glue-postgres-mongodb-lab && git rev-parse HEAD && cat .lab-commit-sha && docker compose --env-file .env -f docker/compose.yaml ps'\''"]'
+command_id="<command_id printed by make ec2-bootstrap>"
+aws ssm get-command-invocation --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  --command-id "$command_id" --instance-id "$instance_id" \
+  --query '{Status:Status,Output:StandardOutputContent}' --output json
 ```
 
-Read the invocation in Systems Manager. The two SHAs must match and both services must be healthy. Do not publish the instance ID or container endpoints.
+The status must be `Success`. The output includes `git_sha=...`, `temporary environment cleanup: PASS`, the deterministic data assertions, and the final bootstrap pass line. Do not publish the instance ID or container endpoints.
 
 **Repeat, reset, or rollback**
 
@@ -522,11 +524,17 @@ aws ssm send-command --profile "$AWS_PROFILE" --region "$AWS_REGION" \
   --parameters 'commands=["sudo -u ec2-user /opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh"]'
 ```
 
-Copy only the printed `ssh-ed25519 ...` public line into GitHub repository **Settings → Deploy keys**, enable write access, and label it for this disposable lab. Then rerun the script with `CONFIGURE_REMOTE=1` through SSM.
+Copy only the printed `ssh-ed25519 ...` public line into GitHub repository **Settings → Deploy keys**, enable write access, and label it for this disposable lab. Then configure the exact identity and trusted GitHub host keys with:
+
+```bash
+aws ssm send-command --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  --instance-ids "$instance_id" --document-name AWS-RunShellScript \
+  --parameters 'commands=["sudo -u ec2-user env CONFIGURE_REMOTE=1 /opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh"]'
+```
 
 **Expected result**
 
-The public key is visible once in the SSM invocation output. The private key remains at `/home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519` with mode `0600`. The script never pushes code or `main`.
+The public key is visible once in the SSM invocation output. The private key remains at `/home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519` with mode `0600`. With `CONFIGURE_REMOTE=1`, the script retrieves GitHub host keys from the TLS-protected GitHub metadata API, writes a private `known_hosts`, sets repository-local `core.sshCommand` to the deploy-key identity, and changes the remote. It never pushes code or `main`.
 
 **Verify**
 
@@ -535,6 +543,8 @@ On EC2 through SSM:
 ```bash
 sudo -u ec2-user test -f /home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519
 sudo -u ec2-user test "$(stat -c '%a' /home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519)" = 600
+sudo -u ec2-user git -C /opt/aws-glue-postgres-mongodb-lab config --get core.sshCommand
+sudo -u ec2-user ssh-keygen -F github.com -f /home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/known_hosts
 ```
 
 **Repeat, reset, or rollback**

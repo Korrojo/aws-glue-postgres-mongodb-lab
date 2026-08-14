@@ -175,6 +175,11 @@ def test_database_runbook_replaces_the_template_with_executable_sections() -> No
     assert "Status: implemented by `GLUE-010` and `GLUE-020`" in runbook
     assert "## Required completed sections" not in runbook
     assert "## Optional — Run the data layer on the Mac" in runbook
+    assert "glue_username" not in runbook
+    assert "glue_password" not in runbook
+    assert 'mongodb["username"]' in runbook
+    assert 'mongodb["password"]' in runbook
+    assert "rm -f .env" in runbook
     for field in (
         "**Purpose**",
         "**Run from**",

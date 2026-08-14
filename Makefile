@@ -85,21 +85,17 @@ doctor: ## Verify repository, personal AWS identity, Region, and tools.
 infra-init: ## Initialize the pinned providers using local state.
 	@$(TERRAFORM) -chdir=$(TF_ROOT) init -input=false
 
-infra-plan: ## Save a reviewable plan to the ignored local tfplan file.
-	@test -n "$(AWS_PROFILE)" || { printf '%s\n' 'ERROR: AWS_PROFILE is required.' >&2; exit 2; }
-	@test "$(AWS_REGION)" = "us-east-1" || { printf '%s\n' 'ERROR: AWS_REGION must be us-east-1.' >&2; exit 2; }
-	@$(TERRAFORM) -chdir=$(TF_ROOT) plan -input=false -out=tfplan
+infra-plan: ## Save a reviewable plan bound to the personal account and current Git SHA.
+	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/terraform-plan.sh
 
-infra-apply: ## Apply only the saved reviewed plan with an explicit lab gate.
-	@test "$(APPROVE_LAB_APPLY)" = "1" || { printf '%s\n' 'ERROR: set APPROVE_LAB_APPLY=1 after reviewing tfplan.' >&2; exit 2; }
-	@test -f $(TF_ROOT)/tfplan || { printf '%s\n' 'ERROR: run make infra-plan first.' >&2; exit 2; }
-	@$(TERRAFORM) -chdir=$(TF_ROOT) apply -input=false tfplan
+infra-apply: ## Apply only the account/Region/Git/hash-bound reviewed plan.
+	@APPROVE_LAB_APPLY="$(APPROVE_LAB_APPLY)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/terraform-apply.sh
 
 secrets-put: ## Generate fresh values and store them without printing them.
-	@TERRAFORM="$(TERRAFORM)" ./scripts/put-lab-secrets.sh
+	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/put-lab-secrets.sh
 
 ec2-bootstrap: ## Start and validate the databases through SSM.
-	@TERRAFORM="$(TERRAFORM)" ./scripts/run-ssm-bootstrap.sh
+	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-ssm-bootstrap.sh
 
 define fail_not_implemented
 	@printf '%s\n' 'ERROR: make $@ is not implemented; owned by roadmap task $(1).' >&2

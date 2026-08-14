@@ -21,7 +21,8 @@ cd "$repo_root"
 git pull --ff-only
 
 tmp_dir="$(mktemp -d)"
-trap 'rm -rf "$tmp_dir"' EXIT
+env_file="$repo_root/.env"
+trap 'rm -rf "$tmp_dir"; rm -f "$env_file"' EXIT
 umask 077
 
 "$aws_cli" --region "$aws_region" secretsmanager get-secret-value \
@@ -31,7 +32,7 @@ umask 077
   --secret-id "/$project_name/mongodb" --query SecretString --output text \
   > "$tmp_dir/mongodb.json"
 
-python3 - "$tmp_dir/postgres.json" "$tmp_dir/mongodb.json" .env <<'PY'
+python3 - "$tmp_dir/postgres.json" "$tmp_dir/mongodb.json" "$env_file" <<'PY'
 import json
 import pathlib
 import sys
@@ -56,5 +57,9 @@ PY
 
 make local-up
 make local-test
+rm -f "$env_file"
 git rev-parse HEAD > .lab-commit-sha
+printf 'git_sha=%s\n' "$(<.lab-commit-sha)"
+test ! -e "$env_file"
+printf 'temporary environment cleanup: PASS\n'
 printf 'aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS\n'

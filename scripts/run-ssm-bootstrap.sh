@@ -13,6 +13,15 @@ if [[ "$aws_region" != "us-east-1" ]]; then
   exit 1
 fi
 
+current_account="$($aws_cli --profile "$AWS_PROFILE" --region "$aws_region" sts get-caller-identity \
+  --query Account --output text)"
+state_account="$($terraform_bin -chdir="$tf_root" output -raw aws_account_id)"
+state_region="$($terraform_bin -chdir="$tf_root" output -raw aws_region)"
+if [[ "$current_account" != "$state_account" || "$aws_region" != "$state_region" ]]; then
+  printf 'ERROR: current AWS account or Region does not match Terraform state.\n' >&2
+  exit 1
+fi
+
 instance_id="$($terraform_bin -chdir="$tf_root" output -raw database_instance_id)"
 command_id="$($aws_cli --profile "$AWS_PROFILE" --region "$aws_region" ssm send-command \
   --instance-ids "$instance_id" \
@@ -23,18 +32,34 @@ command_id="$($aws_cli --profile "$AWS_PROFILE" --region "$aws_region" ssm send-
   --query 'Command.CommandId' --output text)"
 
 printf 'Waiting for scoped SSM command %s on %s...\n' "$command_id" "$instance_id"
-if ! "$aws_cli" --profile "$AWS_PROFILE" --region "$aws_region" ssm wait command-executed \
-  --command-id "$command_id" --instance-id "$instance_id"; then
+deadline=$((SECONDS + 900))
+status="Pending"
+while ((SECONDS < deadline)); do
   status="$($aws_cli --profile "$AWS_PROFILE" --region "$aws_region" ssm get-command-invocation \
-    --command-id "$command_id" --instance-id "$instance_id" --query Status --output text)"
-  printf 'ERROR: SSM bootstrap did not succeed; status is %s. Inspect invocation %s.\n' \
-    "$status" "$command_id" >&2
-  exit 1
-fi
-status="$($aws_cli --profile "$AWS_PROFILE" --region "$aws_region" ssm get-command-invocation \
-  --command-id "$command_id" --instance-id "$instance_id" --query Status --output text)"
+    --command-id "$command_id" --instance-id "$instance_id" --query Status --output text \
+    2>/dev/null || true)"
+  case "$status" in
+    Success)
+      break
+      ;;
+    Failed|Cancelled|Cancelling|TimedOut)
+      printf 'ERROR: SSM bootstrap status is %s. Inspect invocation %s.\n' \
+        "$status" "$command_id" >&2
+      exit 1
+      ;;
+    Pending|InProgress|Delayed|"")
+      sleep 10
+      ;;
+    *)
+      printf 'ERROR: unexpected SSM bootstrap status %s for invocation %s.\n' \
+        "$status" "$command_id" >&2
+      exit 1
+      ;;
+  esac
+done
 if [[ "$status" != "Success" ]]; then
-  printf 'ERROR: SSM bootstrap status is %s. Inspect invocation output in AWS.\n' "$status" >&2
+  printf 'ERROR: SSM bootstrap exceeded its 900-second deadline; inspect invocation %s.\n' \
+    "$command_id" >&2
   exit 1
 fi
-printf 'aws-glue-postgres-mongodb-lab SSM bootstrap: PASS\n'
+printf 'aws-glue-postgres-mongodb-lab SSM bootstrap: PASS (command_id=%s)\n' "$command_id"

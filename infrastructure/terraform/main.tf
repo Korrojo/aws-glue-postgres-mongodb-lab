@@ -11,6 +11,10 @@ data "aws_ssm_parameter" "amazon_linux_2023_ami" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_partition" "current" {}
+
 resource "random_id" "bucket_suffix" {
   byte_length = 4
 }
@@ -327,12 +331,76 @@ resource "aws_iam_role" "glue" {
   assume_role_policy = data.aws_iam_policy_document.glue_assume_role.json
 }
 
-resource "aws_iam_role_policy_attachment" "glue_service" {
-  role       = aws_iam_role.glue.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+data "aws_iam_policy_document" "glue_network_read" {
+  #checkov:skip=CKV_AWS_356:These EC2 Describe APIs do not support resource-level IAM constraints.
+  statement {
+    sid = "ReadGlueNetworkConfiguration"
+    actions = [
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeRouteTables",
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeVpcAttribute",
+      "ec2:DescribeVpcEndpoints",
+    ]
+    resources = ["*"]
+  }
 }
 
 data "aws_iam_policy_document" "glue_lab_access" {
+  statement {
+    sid     = "CreateGlueNetworkInterfaces"
+    actions = ["ec2:CreateNetworkInterface"]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:network-interface/*",
+      "arn:${data.aws_partition.current.partition}:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:subnet/${aws_subnet.lab.id}",
+      "arn:${data.aws_partition.current.partition}:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:security-group/${aws_security_group.glue.id}",
+    ]
+  }
+
+  statement {
+    sid       = "DeleteGlueNetworkInterfaces"
+    actions   = ["ec2:DeleteNetworkInterface"]
+    resources = ["arn:${data.aws_partition.current.partition}:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:network-interface/*"]
+  }
+
+  statement {
+    sid       = "TagGlueNetworkInterfaces"
+    actions   = ["ec2:CreateTags"]
+    resources = ["arn:${data.aws_partition.current.partition}:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:network-interface/*"]
+
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "aws:TagKeys"
+      values   = ["aws-glue-service-resource"]
+    }
+  }
+
+  statement {
+    sid = "WriteGlueLogs"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws-glue/*",
+      "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws-glue/*:*",
+    ]
+  }
+
+  statement {
+    sid       = "PublishGlueMetrics"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = ["AWS/Glue"]
+    }
+  }
+
   statement {
     sid = "UseLabArtifacts"
     actions = [
@@ -355,6 +423,12 @@ resource "aws_iam_role_policy" "glue_lab_access" {
   name   = "lab-artifacts-and-secrets"
   role   = aws_iam_role.glue.id
   policy = data.aws_iam_policy_document.glue_lab_access.json
+}
+
+resource "aws_iam_role_policy" "glue_network_read" {
+  name   = "lab-network-read"
+  role   = aws_iam_role.glue.id
+  policy = data.aws_iam_policy_document.glue_network_read.json
 }
 
 resource "aws_instance" "database_host" {

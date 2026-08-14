@@ -5,6 +5,18 @@ mock_provider "aws" {
     }
   }
 
+  mock_data "aws_caller_identity" {
+    defaults = {
+      account_id = "123456789012"
+    }
+  }
+
+  mock_data "aws_partition" {
+    defaults = {
+      partition = "aws"
+    }
+  }
+
   mock_data "aws_iam_policy_document" {
     defaults = {
       json = "{}"
@@ -21,7 +33,7 @@ mock_provider "random" {
 }
 
 run "foundation_plan" {
-  command = plan
+  command = apply
 
   assert {
     condition     = aws_vpc.lab.cidr_block == "10.40.0.0/16"
@@ -51,5 +63,24 @@ run "foundation_plan" {
   assert {
     condition     = aws_secretsmanager_secret.postgres.recovery_window_in_days == 0
     error_message = "The disposable lab secret must delete during teardown."
+  }
+
+  assert {
+    condition = alltrue([
+      length(aws_security_group.glue.ingress) == 0,
+      length(aws_security_group.database_host.ingress) == 0,
+      length(aws_security_group.endpoint.ingress) == 0,
+      aws_vpc_security_group_ingress_rule.glue_self.cidr_ipv4 == null,
+      aws_vpc_security_group_ingress_rule.glue_self.cidr_ipv6 == null,
+      aws_vpc_security_group_ingress_rule.postgres_from_glue.cidr_ipv4 == null,
+      aws_vpc_security_group_ingress_rule.postgres_from_glue.cidr_ipv6 == null,
+      aws_vpc_security_group_ingress_rule.mongodb_from_glue.cidr_ipv4 == null,
+      aws_vpc_security_group_ingress_rule.mongodb_from_glue.cidr_ipv6 == null,
+      aws_vpc_security_group_ingress_rule.endpoint_from_glue.cidr_ipv4 == null,
+      aws_vpc_security_group_ingress_rule.endpoint_from_glue.cidr_ipv6 == null,
+      aws_vpc_security_group_ingress_rule.endpoint_from_database_host.cidr_ipv4 == null,
+      aws_vpc_security_group_ingress_rule.endpoint_from_database_host.cidr_ipv6 == null,
+    ])
+    error_message = "Every ingress path must reference another lab security group; public CIDRs and inline ingress are forbidden."
   }
 }
