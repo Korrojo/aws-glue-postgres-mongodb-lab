@@ -37,10 +37,11 @@ help: ## Show governance checks and roadmap-owned future targets.
 		'  make deploy            Upload after APPROVE_GLUE_DEPLOY=1' \
 		'  make crawl             Crawl after APPROVE_GLUE_CRAWL=1' \
 		'  make run               Run job after APPROVE_GLUE_RUN=1' \
+		'  make validate          Reconcile after APPROVE_GLUE_VALIDATE=1' \
+		'  make rerun-test        Prove reruns after APPROVE_GLUE_RERUN=1' \
+		'  make cost-check        Inventory after APPROVE_LAB_COST_CHECK=1' \
 		'  make destroy-plan      Save a review-bound Terraform destroy plan' \
-		'  make destroy-lab       Apply only after APPROVE_LAB_DESTROY=1' \
-		'' \
-		'Future operational targets fail with their owning roadmap task.'
+		'  make destroy-lab       Apply only after APPROVE_LAB_DESTROY=1'
 
 check: format-check lint unit-test ## Run every implemented safe local check.
 
@@ -128,8 +129,11 @@ crawl: ## USER-RUN ONLY: run the unscheduled crawler with a bounded waiter.
 run: ## USER-RUN ONLY: run the Glue snapshot job with a bounded waiter.
 	@APPROVE_GLUE_RUN="$(APPROVE_GLUE_RUN)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-glue-job.sh
 
-validate rerun-test:
-	$(call fail_not_implemented,GLUE-050)
+validate: ## USER-RUN ONLY: reconcile bounded source and target summaries.
+	@APPROVE_GLUE_VALIDATE="$(APPROVE_GLUE_VALIDATE)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-validation.sh
 
-cost-check:
-	$(call fail_not_implemented,GLUE-060)
+rerun-test: ## USER-RUN ONLY: prove unchanged, replacement, stale-target, and reset behavior.
+	@APPROVE_GLUE_RERUN="$(APPROVE_GLUE_RERUN)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-rerun-test.sh
+
+cost-check: ## USER-RUN ONLY: inventory only the expected project resources.
+	@APPROVE_LAB_COST_CHECK="$(APPROVE_LAB_COST_CHECK)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/cost-check.sh

@@ -140,7 +140,31 @@ else:
         fake_aws,
         """#!/usr/bin/env python3
 import json
-print(json.dumps({"Account": "test-account", "Arn": "test-principal"}))
+import sys
+args = sys.argv[1:]
+if "sts" in args and "get-caller-identity" in args:
+    if "--query" in args and args[args.index("--query") + 1] == "Account":
+        print("test-account")
+    else:
+        print(json.dumps({"Account": "test-account", "Arn": "test-principal"}))
+elif args[:2] in (
+    ["resourcegroupstaggingapi", "get-resources"],
+    ["ec2", "describe-instances"],
+    ["ec2", "describe-vpc-endpoints"],
+    ["s3api", "list-buckets"],
+):
+    print("0")
+elif args and args[0] == "glue":
+    print("EntityNotFoundException", file=sys.stderr)
+    raise SystemExit(255)
+elif args[:2] == ["secretsmanager", "describe-secret"]:
+    print("ResourceNotFoundException", file=sys.stderr)
+    raise SystemExit(255)
+elif args[:2] == ["iam", "get-role"]:
+    print("NoSuchEntity", file=sys.stderr)
+    raise SystemExit(255)
+else:
+    raise SystemExit(f"unexpected aws arguments: {args}")
 """,
     )
     write_executable(
@@ -162,6 +186,12 @@ elif command == "state" and args[command_index + 1] == "pull":
 elif command == "state" and args[command_index + 1] == "list":
     if not pathlib.Path(os.environ["FAKE_APPLY_MARKER"]).exists():
         print("aws_vpc.lab")
+elif (
+    command == "output"
+    and args[command_index + 1 : command_index + 3]
+    == ["-raw", "artifact_bucket_name"]
+):
+    print("test-artifact-bucket")
 elif command == "plan":
     pathlib.Path(os.environ["FAKE_PLAN_FILE"]).write_bytes(b"reviewed-destroy-plan")
 elif command == "apply":
@@ -344,9 +374,9 @@ def test_foundation_status_and_user_run_only_governance_contract() -> None:
     assert "| `GLUE-020` | DONE |" in roadmap
     assert "| `GLUE-025` | DONE |" in roadmap
     for task in ("GLUE-030", "GLUE-040"):
-        assert f"| `{task}` | IN PROGRESS | PR #5 PLACEHOLDER |" in roadmap
+        assert f"| `{task}` | DONE | [#5]" in roadmap
     for task in ("GLUE-050", "GLUE-060"):
-        assert f"| `{task}` | NOT STARTED |" in roadmap
+        assert f"| `{task}` | IN PROGRESS | PR #6 PLACEHOLDER |" in roadmap
 
     combined_foundation_docs = deploy_runbook + database_runbook + destroy_runbook
     assert "User-run only" in combined_foundation_docs
@@ -368,9 +398,9 @@ def test_foundation_status_and_user_run_only_governance_contract() -> None:
     assert "`make ec2-bootstrap` alone" in deploy_runbook
     assert "`make ec2-bootstrap` alone" in database_runbook
 
-    assert "Status: foundation destroy implemented by `GLUE-025`" in destroy_runbook
+    assert "Status: implementation complete" in destroy_runbook
     assert "GLUE-060" in destroy_runbook
-    assert "deferred" in destroy_runbook.lower()
+    assert "post-destroy known-service verification: PASS" in destroy_runbook
     for field in (
         "**Purpose**",
         "**Run from**",

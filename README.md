@@ -21,7 +21,7 @@ One Region, VPC, subnet, Availability Zone, EC2 host, crawler, and Glue job keep
 
 ## What this lab creates
 
-When the later roadmap tasks are implemented and the lab is run, it creates:
+When the user runs the completed lab, it creates:
 
 - a dedicated VPC with one subnet, restricted security groups, and required VPC endpoints;
 - one Systems Manager-managed EC2 instance hosting PostgreSQL and MongoDB containers;
@@ -77,4 +77,4 @@ You will need a personal AWS account, GitHub access, a Mac terminal, Git, AWS CL
 
 ## Current status
 
-`GLUE-000`, `GLUE-010`, `GLUE-020`, and `GLUE-025` are **DONE** in [PR #1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1), [PR #2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2), [PR #3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3), and [PR #4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4). `GLUE-030` and `GLUE-040` are **IN PROGRESS** together on the PR #5 placeholder branch for Glue metadata, the crawler, and the snapshot ETL. `GLUE-050` and `GLUE-060` remain not started. See the [roadmap](docs/project/ROADMAP.md) for task ownership and status.
+`GLUE-000` through `GLUE-040` are **DONE** in [PR #1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1), [PR #2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2), [PR #3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3), [PR #4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4), and [PR #5](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/5). `GLUE-050` and `GLUE-060` are **IN PROGRESS** together as the bounded PR #6 aggregate (`PR #6 PLACEHOLDER`) for reconciliation, rerun proof, final inventory, cleanup verification, and runbooks. Tasks are not marked **DONE** before merge. See the [roadmap](docs/project/ROADMAP.md) for ownership and status.

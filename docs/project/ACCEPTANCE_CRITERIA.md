@@ -190,9 +190,9 @@ make ec2-bootstrap
 APPROVE_GLUE_DEPLOY=1 make deploy
 APPROVE_GLUE_CRAWL=1 make crawl
 APPROVE_GLUE_RUN=1 make run
-make validate
-make rerun-test
-make cost-check
+APPROVE_GLUE_VALIDATE=1 make validate
+APPROVE_GLUE_RERUN=1 make rerun-test
+APPROVE_LAB_COST_CHECK=1 make cost-check
 make destroy-plan
 APPROVE_LAB_DESTROY=1 make destroy-lab
 ```

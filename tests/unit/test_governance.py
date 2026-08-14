@@ -5,8 +5,6 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 
 RUNBOOKS = [
@@ -20,12 +18,6 @@ RUNBOOKS = [
     "06-DESTROY.md",
     "07-TROUBLESHOOTING.md",
 ]
-
-UNIMPLEMENTED_TARGETS = {
-    "validate": "GLUE-050",
-    "rerun-test": "GLUE-050",
-    "cost-check": "GLUE-060",
-}
 
 
 def run_make(target: str) -> subprocess.CompletedProcess[str]:
@@ -94,16 +86,6 @@ def test_environment_example_contains_only_safe_nonsecret_inputs() -> None:
     assert all("://" not in value for value in values.values())
 
 
-@pytest.mark.parametrize(("target", "owner"), UNIMPLEMENTED_TARGETS.items())
-def test_future_make_target_fails_with_roadmap_owner(target: str, owner: str) -> None:
-    result = run_make(target)
-
-    assert result.returncode != 0
-    assert (
-        f"ERROR: make {target} is not implemented; owned by roadmap task {owner}." in result.stderr
-    )
-
-
 def test_design_blueprint_directories_and_current_components_exist() -> None:
     expected_directories = [
         "docker/mongodb/init",
@@ -121,16 +103,11 @@ def test_design_blueprint_directories_and_current_components_exist() -> None:
     current_files = [
         "glue/jobs/postgres_orders_to_mongodb.py",
         "src/glue_lab/transformations.py",
-    ]
-    for relative_path in current_files:
-        assert (ROOT / relative_path).is_file()
-
-    future_files = [
         "src/glue_lab/validation.py",
         "validation/reconcile.py",
     ]
-    for relative_path in future_files:
-        assert not (ROOT / relative_path).exists()
+    for relative_path in current_files:
+        assert (ROOT / relative_path).is_file()
 
 
 def test_roadmap_records_merged_foundation_and_grouped_glue_work() -> None:
@@ -143,9 +120,9 @@ def test_roadmap_records_merged_foundation_and_grouped_glue_work() -> None:
         ) in roadmap
     assert "MERGED — PENDING LIVE VALIDATION" not in roadmap
     for task in ("GLUE-030", "GLUE-040"):
-        assert f"| `{task}` | IN PROGRESS | PR #5 PLACEHOLDER |" in roadmap
+        assert f"| `{task}` | DONE | [#5]" in roadmap
     for task in ("GLUE-050", "GLUE-060"):
-        assert f"| `{task}` | NOT STARTED |" in roadmap
+        assert f"| `{task}` | IN PROGRESS | PR #6 PLACEHOLDER |" in roadmap
 
 
 def test_governance_separates_local_command_proof_from_optional_user_run_evidence() -> None:

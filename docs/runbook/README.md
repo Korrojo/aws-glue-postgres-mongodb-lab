@@ -25,7 +25,7 @@ Optional paths must be clearly separated:
 
 Neither optional path is required to complete the core Glue lab.
 
-## Rule for implementation PRs
+## Release documentation rule
 
-These files begin as controlled templates. The task that implements a component replaces every implementation marker with complete user-run commands and expected results plus credential-free static/mock/unit coverage. A task cannot be marked `DONE` while its runbook contains missing commands or undocumented reset behavior. User-run AWS output is not an agent acceptance gate.
+Each numbered runbook is an implemented user-run guide with credential-free command-contract coverage. User-run AWS output remains optional evidence, is never inferred from development checks, and must be kept separate and redacted.
 

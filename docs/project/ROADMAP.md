@@ -10,7 +10,7 @@
 
 `DONE` means the reviewed implementation and credential-free development checks are complete. Live AWS execution is not a task status or agent acceptance gate; it is user-run only.
 
-Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-030` and `GLUE-040` are the explicit PR #5 grouping and therefore share one active branch.
+Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` are the explicit PR #6 grouping and therefore share one active branch.
 
 ## Credential-free development acceptance
 
@@ -24,10 +24,10 @@ Agents must never request or use AWS credentials or execute any AWS command. Sta
 | `GLUE-010` | DONE | [#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` | Containerized source/target and fixtures |
 | `GLUE-020` | DONE | [#3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
 | `GLUE-025` | DONE | [#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) | `GLUE-020` | Foundation teardown and persistent-volume rotation correction |
-| `GLUE-030` | IN PROGRESS | PR #5 PLACEHOLDER | `GLUE-025` | Glue networking, connections, crawler, catalog |
-| `GLUE-040` | IN PROGRESS | PR #5 PLACEHOLDER | `GLUE-030` | PySpark transformation and MongoDB load |
-| `GLUE-050` | NOT STARTED | — | `GLUE-040` | Reconciliation and rerun validation |
-| `GLUE-060` | NOT STARTED | — | `GLUE-050` | Runbook, cleanup proof, final release |
+| `GLUE-030` | DONE | [#5](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/5) | `GLUE-025` | Glue networking, connections, crawler, catalog |
+| `GLUE-040` | DONE | [#5](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/5) | `GLUE-030` | PySpark transformation and MongoDB load |
+| `GLUE-050` | IN PROGRESS | PR #6 PLACEHOLDER | `GLUE-040` | Reconciliation and rerun validation |
+| `GLUE-060` | IN PROGRESS | PR #6 PLACEHOLDER | `GLUE-050` | Runbook, cleanup proof, final release |
 
 ## `GLUE-000` — Governance and repository skeleton
 
