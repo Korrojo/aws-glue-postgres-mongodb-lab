@@ -1,11 +1,57 @@
 # 02 — Start and Verify the Databases
 
 Owners: `GLUE-010`, finalized by `GLUE-020`  
-Status: data-layer commands implemented by `GLUE-010`; EC2 provisioning is finalized by `GLUE-020`
+Status: implemented by `GLUE-010` and `GLUE-020`
 
 PostgreSQL and MongoDB run together on the disposable EC2 instance for the core lab. The Mac path at the end is optional and exists only for a quick developer smoke test. Both paths use the same Compose file, initialization scripts, deterministic fixtures, and assertions.
 
-## Core path — EC2 through Systems Manager
+## Recommended automated EC2 path
+
+**Purpose**
+
+Run the complete secret retrieval, startup, health, fixture, and commit-SHA checks through Systems Manager without opening SSH.
+
+**Run from**
+
+`Mac terminal — repository root`
+
+**Prerequisites**
+
+- Runbook 01 applied and verified the GLUE-020 foundation.
+- Both secret values exist.
+- The EC2 instance is `Online` in Systems Manager.
+
+**Inputs**
+
+The personal `AWS_PROFILE` and `AWS_REGION=us-east-1`; no database credential is entered or printed.
+
+**Command**
+
+```bash
+make ec2-bootstrap
+```
+
+**Expected result**
+
+The SSM invocation ends with `aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS`, both containers are healthy, deterministic counts pass, all invalid fixtures are rejected, `.lab-commit-sha` matches the EC2 checkout, and the temporary `.env` is absent.
+
+**Verify**
+
+Use the SSM invocation output and the read-only commands in runbook 01 Step 8. Do not publish the instance ID, private address, endpoints, or secret values.
+
+**Repeat, reset, or rollback**
+
+The command is safe to rerun. Use the project-scoped `make local-down RESET_VOLUMES=1` through SSM before a deliberate clean reseed.
+
+**If it fails**
+
+Continue with the manual diagnostic steps below; they expose each prerequisite and command separately without changing the architecture.
+
+**Next**
+
+After success, retain the recorded Git SHA and continue to runbook 03 only after GLUE-020 is merged.
+
+## Manual EC2 diagnostic path
 
 ### Step 1 — Confirm the reviewed repository checkout
 
@@ -84,7 +130,7 @@ Retrieve the two lab secret values with the EC2 instance role and write the exac
   - `/aws-glue-postgres-mongodb-lab/postgres`
   - `/aws-glue-postgres-mongodb-lab/mongodb`
 - The PostgreSQL secret JSON contains `username`, `password`, and `database`.
-- The MongoDB secret JSON contains `root_username`, `root_password`, `glue_username`, `glue_password`, and `database`.
+- The MongoDB secret JSON contains `root_username`, `root_password`, `username`, `password`, and `database`.
 - `AWS_REGION` is `us-east-1`.
 
 **Inputs**
@@ -124,8 +170,8 @@ required_postgres = {"username", "password", "database"}
 required_mongodb = {
     "root_username",
     "root_password",
-    "glue_username",
-    "glue_password",
+    "username",
+    "password",
     "database",
 }
 if not required_postgres <= postgres.keys() or not required_mongodb <= mongodb.keys():
@@ -138,8 +184,8 @@ lines = {
     "MONGO_INITDB_ROOT_USERNAME": mongodb["root_username"],
     "MONGO_INITDB_ROOT_PASSWORD": mongodb["root_password"],
     "MONGO_DATABASE": mongodb["database"],
-    "MONGO_GLUE_USERNAME": mongodb["glue_username"],
-    "MONGO_GLUE_PASSWORD": mongodb["glue_password"],
+    "MONGO_GLUE_USERNAME": mongodb["username"],
+    "MONGO_GLUE_PASSWORD": mongodb["password"],
 }
 if any(not str(value) for value in lines.values()):
     raise SystemExit("secret JSON contains an empty required value")
@@ -183,7 +229,7 @@ Pass: the command prints only `database environment: PASS`.
 
 **Repeat, reset, or rollback**
 
-Safe to repeat after secret rotation; the command replaces `.env`. Remove local material with `rm -f .env /tmp/glue-lab-postgres.json /tmp/glue-lab-mongodb.json` when the lab is destroyed.
+Safe to repeat after secret rotation; the command replaces `.env`. Keep it only through the immediately following Compose operation, then remove it as shown in Step 4. Temporary secret files must not survive the database operation.
 
 **If it fails**
 
@@ -283,19 +329,22 @@ No new input is required.
 
 ```bash
 make local-test
+make local-test
+rm -f .env
 ```
 
 **Expected result**
 
-The seed upsert runs again without changing row counts. PostgreSQL reports 5 total orders, 4 active orders, 9 total items, and 7 active items belonging to active orders. Four invalid fixtures are rejected. MongoDB authenticates as the lab writer and reports zero order documents. The final line is `local data assertions: PASS`.
+Both test runs preserve the deterministic counts: 5 total orders, 4 active orders, 9 total items, and 7 active items belonging to active orders. Four invalid fixtures are rejected. MongoDB authenticates as the lab writer and reports zero order documents. The final line of each run is `local data assertions: PASS`; the temporary `.env` is then deleted immediately.
 
 **Verify**
 
 ```bash
-make local-test
+test ! -e .env
+docker ps --filter label=com.docker.compose.project=aws-glue-postgres-mongodb-lab   --format '{{.Names}} {{.Status}}'
 ```
 
-Pass: the second identical run also exits `0` with the same counts and final pass line.
+Pass: `.env` is absent and both project containers remain healthy.
 
 **Repeat, reset, or rollback**
 
@@ -328,7 +377,7 @@ Step 4 passed.
 
 **Inputs**
 
-No new input is required.
+Repeat Step 2 to create a fresh mode-`0600` `.env` from Secrets Manager for this operation only.
 
 **Command**
 
@@ -336,6 +385,7 @@ No new input is required.
 make local-down
 make local-up
 make local-test
+rm -f .env
 ```
 
 **Expected result**
@@ -375,6 +425,7 @@ Remove only this project’s containers and named volumes, then rebuild from the
 **Prerequisites**
 
 - You intend to delete all disposable PostgreSQL and MongoDB data in this lab project.
+- Repeat Step 2 to create a fresh mode-`0600` `.env` for this operation only.
 - `docker compose --env-file .env -f docker/compose.yaml config --format json` reports project name `aws-glue-postgres-mongodb-lab`.
 
 **Inputs**
@@ -391,6 +442,7 @@ export RESET_VOLUMES=1
 make local-down RESET_VOLUMES=1
 make local-up
 make local-test
+rm -f .env
 ```
 
 **Expected result**

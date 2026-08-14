@@ -2,6 +2,8 @@
 
 RUFF ?= ruff
 PYTEST ?= pytest
+TERRAFORM ?= terraform
+TF_ROOT := infrastructure/terraform
 COMPOSE_FILE := docker/compose.yaml
 COMPOSE := docker compose --env-file .env -f $(COMPOSE_FILE)
 
@@ -22,7 +24,13 @@ help: ## Show governance checks and roadmap-owned future targets.
 		'  make local-status      Show container status' \
 		'  make local-test        Run source, invalid-fixture, and target assertions' \
 		'  make local-down        Stop containers; add RESET_VOLUMES=1 to reseed' \
-		'  make terraform-check   Format/validate Terraform when GLUE-020 adds it' \
+		'  make terraform-check   Validate and mock-test the AWS foundation' \
+		'  make doctor            Verify personal AWS and local prerequisites' \
+		'  make infra-init        Initialize pinned Terraform providers' \
+		'  make infra-plan        Save a reviewable local lab plan' \
+		'  make infra-apply       Apply only after APPROVE_LAB_APPLY=1' \
+		'  make secrets-put       Generate and store both database secrets' \
+		'  make ec2-bootstrap     Start/test databases through SSM' \
 		'' \
 		'Future operational targets fail with their owning roadmap task.'
 
@@ -65,27 +73,34 @@ local-down: ## Stop containers; set RESET_VOLUMES=1 to remove only project volum
 		$(COMPOSE) down --remove-orphans; \
 	fi
 
-terraform-check: ## Format and validate Terraform after GLUE-020 supplies configuration.
-	@set -- infrastructure/terraform/*.tf; \
-	if [ ! -e "$$1" ]; then \
-		printf '%s\n' 'ERROR: make terraform-check is not implemented; GLUE-020 must add Terraform configuration.' >&2; \
-		exit 2; \
-	fi; \
-	if ! command -v terraform >/dev/null 2>&1; then \
-		printf '%s\n' 'ERROR: terraform is required to validate infrastructure/terraform.' >&2; \
-		exit 2; \
-	fi; \
-	terraform -chdir=infrastructure/terraform fmt -check -recursive; \
-	terraform -chdir=infrastructure/terraform init -backend=false -input=false; \
-	terraform -chdir=infrastructure/terraform validate
+terraform-check: ## Format-check, validate, and mock-plan the Terraform root.
+	@$(TERRAFORM) -chdir=$(TF_ROOT) fmt -check -recursive
+	@$(TERRAFORM) -chdir=$(TF_ROOT) init -backend=false -input=false
+	@$(TERRAFORM) -chdir=$(TF_ROOT) validate
+	@$(TERRAFORM) -chdir=$(TF_ROOT) test
+
+doctor: ## Verify repository, personal AWS identity, Region, and tools.
+	@TERRAFORM="$(TERRAFORM)" ./scripts/doctor.sh
+
+infra-init: ## Initialize the pinned providers using local state.
+	@$(TERRAFORM) -chdir=$(TF_ROOT) init -input=false
+
+infra-plan: ## Save a reviewable plan bound to the personal account and current Git SHA.
+	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/terraform-plan.sh
+
+infra-apply: ## Apply only the account/Region/Git/hash-bound reviewed plan.
+	@APPROVE_LAB_APPLY="$(APPROVE_LAB_APPLY)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/terraform-apply.sh
+
+secrets-put: ## Generate fresh values and store them without printing them.
+	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/put-lab-secrets.sh
+
+ec2-bootstrap: ## Start and validate the databases through SSM.
+	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-ssm-bootstrap.sh
 
 define fail_not_implemented
 	@printf '%s\n' 'ERROR: make $@ is not implemented; owned by roadmap task $(1).' >&2
 	@exit 2
 endef
-
-doctor infra-init infra-plan infra-apply secrets-put ec2-bootstrap:
-	$(call fail_not_implemented,GLUE-020)
 
 deploy crawl:
 	$(call fail_not_implemented,GLUE-030)
