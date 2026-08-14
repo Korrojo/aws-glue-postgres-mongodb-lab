@@ -18,7 +18,7 @@ Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and 
 | `GLUE-000` | DONE | [#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) | — | Governance and repository skeleton |
 | `GLUE-010` | DONE | [#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` | Containerized source/target and fixtures |
 | `GLUE-020` | MERGED — PENDING LIVE VALIDATION | [#3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
-| `GLUE-025` | IN PROGRESS | PR PLACEHOLDER | `GLUE-020` | Foundation teardown and persistent-volume rotation correction |
+| `GLUE-025` | PR OPEN | [#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) | `GLUE-020` | Foundation teardown and persistent-volume rotation correction |
 | `GLUE-030` | NOT STARTED | — | `GLUE-025` | Glue networking, connections, crawler, catalog |
 | `GLUE-040` | NOT STARTED | — | `GLUE-030` | PySpark transformation and MongoDB load |
 | `GLUE-050` | NOT STARTED | — | `GLUE-040` | Reconciliation and rerun validation |
@@ -120,7 +120,7 @@ PR grouping: PR 3 only
 ## `GLUE-025` — Foundation teardown and persistent-volume rotation correction
 
 Branch: `agent/hermes-codex/glue-025-foundation-cleanup`
-PR grouping: one corrective PR; replace `PR PLACEHOLDER` when opened
+PR grouping: PR 4 only
 
 ### To-do
 

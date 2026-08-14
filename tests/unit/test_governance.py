@@ -157,7 +157,10 @@ def test_roadmap_records_foundation_merge_and_only_glue_025_active() -> None:
         "## `GLUE-025`", maxsplit=1
     )[0]
     assert "- [ ]" not in glue_020_section
-    assert "| `GLUE-025` | IN PROGRESS | PR PLACEHOLDER | `GLUE-020` |" in roadmap
+    assert (
+        "| `GLUE-025` | PR OPEN | "
+        "[#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) | `GLUE-020` |"
+    ) in roadmap
     glue_025_section = roadmap.split("## `GLUE-025`", maxsplit=1)[1].split(
         "## `GLUE-030`", maxsplit=1
     )[0]

@@ -341,7 +341,10 @@ def test_glue_025_status_and_personal_account_live_validation_contract() -> None
     exact_status = "MERGED — PENDING LIVE VALIDATION"
     assert exact_status in readme
     assert f"| `GLUE-020` | {exact_status} |" in roadmap
-    assert "| `GLUE-025` | IN PROGRESS | PR PLACEHOLDER |" in roadmap
+    assert (
+        "| `GLUE-025` | PR OPEN | "
+        "[#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) |"
+    ) in roadmap
     assert "Branch: `agent/hermes-codex/glue-025-foundation-cleanup`" in roadmap
     for task in ("GLUE-030", "GLUE-040", "GLUE-050", "GLUE-060"):
         assert f"| `{task}` | NOT STARTED |" in roadmap
