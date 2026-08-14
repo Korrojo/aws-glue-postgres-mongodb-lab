@@ -117,10 +117,14 @@ def test_storage_secrets_iam_and_ec2_follow_the_design() -> None:
         "logs:CreateLogStream",
         "logs:PutLogEvents",
         "cloudwatch:PutMetricData",
+        "s3:GetBucketLocation",
+        "s3:GetBucketAcl",
     ):
         assert action in text
     assert "AWSGlueServiceRole" not in text
     assert '"glue:*"' not in text
+    assert 'variable = "cloudwatch:namespace"' in text
+    assert 'values   = ["Glue"]' in text
 
     assert re.search(r'name\s*=\s*"/\$\{local\.project_name\}/postgres"', text)
     assert re.search(r'name\s*=\s*"/\$\{local\.project_name\}/mongodb"', text)

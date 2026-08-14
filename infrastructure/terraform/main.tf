@@ -397,19 +397,28 @@ data "aws_iam_policy_document" "glue_lab_access" {
     condition {
       test     = "StringEquals"
       variable = "cloudwatch:namespace"
-      values   = ["AWS/Glue"]
+      values   = ["Glue"]
     }
   }
 
   statement {
-    sid = "UseLabArtifacts"
+    sid = "ReadLabArtifactBucket"
+    actions = [
+      "s3:GetBucketAcl",
+      "s3:GetBucketLocation",
+      "s3:ListBucket",
+    ]
+    resources = [aws_s3_bucket.artifacts.arn]
+  }
+
+  statement {
+    sid = "UseLabArtifactObjects"
     actions = [
       "s3:GetObject",
       "s3:PutObject",
       "s3:DeleteObject",
-      "s3:ListBucket",
     ]
-    resources = [aws_s3_bucket.artifacts.arn, "${aws_s3_bucket.artifacts.arn}/*"]
+    resources = ["${aws_s3_bucket.artifacts.arn}/*"]
   }
 
   statement {
