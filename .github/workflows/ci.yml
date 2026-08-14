@@ -44,22 +44,20 @@ jobs:
         run: make unit-test
 
   scaffold:
-    name: Compose validation and Terraform scaffolding
+    name: Compose and Terraform foundation validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
         with:
+          terraform_version: "1.15.8"
           terraform_wrapper: false
       - name: Validate Docker Compose
         run: make compose-check
-      - name: Prove the deferred Terraform check fails explicitly
-        run: |
-          if make terraform-check >terraform.out 2>terraform.err; then
-            echo "terraform-check unexpectedly succeeded" >&2
-            exit 1
-          fi
-          grep -F "ERROR: make terraform-check is not implemented; GLUE-020 must add Terraform configuration." terraform.err
+      - name: Validate pinned Terraform configuration
+        run: make terraform-check
+      - name: Terraform AWS foundation tests
+        run: terraform -chdir=infrastructure/terraform test
 
   data-layer:
     name: Data-layer container smoke test

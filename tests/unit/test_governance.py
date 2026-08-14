@@ -150,5 +150,9 @@ def test_roadmap_records_prior_merges_and_only_glue_020_active() -> None:
     )[0]
     assert "- [ ]" not in glue_010_section
     assert "| `GLUE-020` | IN PROGRESS | — | `GLUE-010` |" in roadmap
+    glue_020_section = roadmap.split("## `GLUE-020`", maxsplit=1)[1].split(
+        "## `GLUE-030`", maxsplit=1
+    )[0]
+    assert "- [ ]" not in glue_020_section
     for task_number in range(30, 61, 10):
         assert f"| `GLUE-{task_number:03d}` | NOT STARTED |" in roadmap

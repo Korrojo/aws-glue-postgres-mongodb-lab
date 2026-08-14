@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2154 # repository_ref and repository_url are Terraform inputs.
+set -euo pipefail
+
+exec > >(tee -a /var/log/aws-glue-lab-bootstrap.log) 2>&1
+
+dnf install -y docker git
+dnf install -y curl
+systemctl enable --now docker
+systemctl enable --now amazon-ssm-agent
+usermod -aG docker ec2-user
+
+compose_url="https://github.com/docker/compose/releases/download/v5.4.0/docker-compose-linux-x86_64"
+compose_sha256="837fd1d35bf6a494f41b5b5988269a7be79de337cf1a1a6ff0e45ab51bb4e9be"
+install -d /usr/local/lib/docker/cli-plugins
+curl -fsSL "$compose_url" -o /usr/local/lib/docker/cli-plugins/docker-compose
+printf '%s  %s\n' "$compose_sha256" /usr/local/lib/docker/cli-plugins/docker-compose | sha256sum -c -
+chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose
+
+install -d -o ec2-user -g ec2-user /opt/aws-glue-postgres-mongodb-lab
+if [[ ! -d /opt/aws-glue-postgres-mongodb-lab/.git ]]; then
+  rmdir /opt/aws-glue-postgres-mongodb-lab
+  sudo -u ec2-user git clone --branch "${repository_ref}" --single-branch \
+    "${repository_url}" /opt/aws-glue-postgres-mongodb-lab
+fi
+
+sudo -u ec2-user git -C /opt/aws-glue-postgres-mongodb-lab rev-parse HEAD \
+  | tee /var/log/aws-glue-lab-git-sha >/dev/null
+install -d /var/lib/aws-glue-postgres-mongodb-lab
+touch /var/lib/aws-glue-postgres-mongodb-lab/bootstrap-complete

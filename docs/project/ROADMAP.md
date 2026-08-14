@@ -15,8 +15,8 @@ Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and 
 | Task | Status | PR | Depends on | Outcome |
 |---|---|---|---|---|
 | `GLUE-000` | DONE | [#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) | — | Governance and repository skeleton |
-| `GLUE-010` | PR OPEN | [#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` | Containerized source/target and fixtures |
-| `GLUE-020` | NOT STARTED | — | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
+| `GLUE-010` | DONE | [#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` | Containerized source/target and fixtures |
+| `GLUE-020` | IN PROGRESS | — | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
 | `GLUE-030` | NOT STARTED | — | `GLUE-020` | Glue networking, connections, crawler, catalog |
 | `GLUE-040` | NOT STARTED | — | `GLUE-030` | PySpark transformation and MongoDB load |
 | `GLUE-050` | NOT STARTED | — | `GLUE-040` | Reconciliation and rerun validation |
@@ -88,22 +88,22 @@ PR grouping: PR 3 only
 
 ### To-do
 
-- [ ] Create simple, non-overmodularized Terraform under `infrastructure/terraform/`.
-- [ ] Add provider constraints and lock file.
-- [ ] Create dedicated VPC, one subnet, route table, internet gateway, S3 gateway endpoint, and required security groups.
-- [ ] Create encrypted S3 bucket with public access blocked and lifecycle rules for temporary objects.
-- [ ] Create Secrets Manager secret resources without secret values.
-- [ ] Create least-privilege EC2 and Glue IAM roles/policies.
-- [ ] Create Amazon Linux EC2 with encrypted gp3 root disk, project tags, SSM access, Docker/Git bootstrap, and no inbound SSH.
-- [ ] Clone the public repository to `/opt/aws-glue-postgres-mongodb-lab` and record the checked-out Git commit SHA during each lab run.
-- [ ] Add `scripts/put-lab-secrets.sh`; generate and store values without output.
-- [ ] Add SSM-based database startup after secret values exist.
-- [ ] Add optional SSM-based deploy-key generation and instructions for write-enabled EC2 pushes.
-- [ ] Ensure the private deploy key never leaves EC2.
-- [ ] Implement `make doctor`, `make infra-init`, `make infra-plan`, `make infra-apply`, `make secrets-put`, and `make ec2-bootstrap`.
-- [ ] Keep Terraform in one understandable root configuration unless a small local module materially reduces repetition.
-- [ ] Add simple automated assertions or plan inspection instructions for forbidden public ingress and NAT Gateway absence; do not introduce a policy-as-code framework.
-- [ ] Complete `docs/runbook/00-PREREQUISITES.md` and `docs/runbook/01-DEPLOY-INFRASTRUCTURE.md` in the same PR.
+- [x] Create simple, non-overmodularized Terraform under `infrastructure/terraform/`.
+- [x] Add provider constraints and lock file.
+- [x] Create dedicated VPC, one subnet, route table, internet gateway, S3 gateway endpoint, and required security groups.
+- [x] Create encrypted S3 bucket with public access blocked and lifecycle rules for temporary objects.
+- [x] Create Secrets Manager secret resources without secret values.
+- [x] Create least-privilege EC2 and Glue IAM roles/policies.
+- [x] Create Amazon Linux EC2 with encrypted gp3 root disk, project tags, SSM access, Docker/Git bootstrap, and no inbound SSH.
+- [x] Clone the public repository to `/opt/aws-glue-postgres-mongodb-lab` and record the checked-out Git commit SHA during each lab run.
+- [x] Add `scripts/put-lab-secrets.sh`; generate and store values without output.
+- [x] Add SSM-based database startup after secret values exist.
+- [x] Add optional SSM-based deploy-key generation and instructions for write-enabled EC2 pushes.
+- [x] Ensure the private deploy key never leaves EC2.
+- [x] Implement `make doctor`, `make infra-init`, `make infra-plan`, `make infra-apply`, `make secrets-put`, and `make ec2-bootstrap`.
+- [x] Keep Terraform in one understandable root configuration unless a small local module materially reduces repetition.
+- [x] Add simple automated assertions or plan inspection instructions for forbidden public ingress and NAT Gateway absence; do not introduce a policy-as-code framework.
+- [x] Complete `docs/runbook/00-PREREQUISITES.md` and `docs/runbook/01-DEPLOY-INFRASTRUCTURE.md` in the same PR.
 
 ### Acceptance
 

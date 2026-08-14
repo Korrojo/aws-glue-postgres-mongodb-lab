@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,8 +31,8 @@ def test_terraform_root_is_small_locked_and_local_state_only() -> None:
     assert 'required_version = ">= 1.15.0, < 2.0.0"' in text
     assert 'version = "~> 6.60"' in text
     assert 'version = "~> 3.9"' in text
-    assert "backend \"" not in text
-    assert "module \"" not in text
+    assert 'backend "' not in text
+    assert 'module "' not in text
 
 
 def test_foundation_has_one_lab_path_and_no_forbidden_enterprise_components() -> None:
@@ -56,13 +57,20 @@ def test_foundation_has_one_lab_path_and_no_forbidden_enterprise_components() ->
 def test_network_rules_allow_only_glue_to_reach_database_ports() -> None:
     text = terraform_text()
 
-    assert 'name = "glue"' in text
-    assert 'name = "database-host"' in text
-    assert 'name = "endpoint"' in text
-    assert text.count("from_port                    = 5432") == 1
-    assert text.count("from_port                    = 27017") == 1
-    assert text.count("referenced_security_group_id = aws_security_group.glue.id") >= 3
-    assert "from_port                    = 22" not in text
+    for name in ("glue", "database-host", "endpoint"):
+        assert re.search(rf'name\s*=\s*"{name}"', text)
+    assert len(re.findall(r"from_port\s*=\s*5432", text)) == 1
+    assert len(re.findall(r"from_port\s*=\s*27017", text)) == 1
+    assert (
+        len(
+            re.findall(
+                r"referenced_security_group_id\s*=\s*aws_security_group\.glue\.id",
+                text,
+            )
+        )
+        >= 3
+    )
+    assert not re.search(r"from_port\s*=\s*22", text)
     assert 'cidr_ipv4                    = "0.0.0.0/0"' not in text
     assert "self-referencing All TCP" in text
 
@@ -98,17 +106,17 @@ def test_storage_secrets_iam_and_ec2_follow_the_design() -> None:
     ):
         assert required in text
 
-    assert "/aws-glue-postgres-mongodb-lab/postgres" in text
-    assert "/aws-glue-postgres-mongodb-lab/mongodb" in text
+    assert re.search(r'name\s*=\s*"/\$\{local\.project_name\}/postgres"', text)
+    assert re.search(r'name\s*=\s*"/\$\{local\.project_name\}/mongodb"', text)
     assert "secret_string" not in text
 
     for required in (
         "set -euo pipefail",
         "dnf install -y docker git",
         "systemctl enable --now docker",
-        "git clone --branch main",
+        'git clone --branch "${repository_ref}"',
         "/opt/aws-glue-postgres-mongodb-lab",
-        "git rev-parse HEAD",
+        "rev-parse HEAD",
         "bootstrap-complete",
     ):
         assert required in user_data
@@ -138,7 +146,7 @@ def test_glue_020_scripts_are_strict_scoped_and_nonsecret() -> None:
     deploy_key_script = (scripts / "configure-ec2-github-write.sh").read_text()
     assert "ssh-keygen -t ed25519" in deploy_key_script
     assert "id_ed25519.pub" in deploy_key_script
-    assert "cat \"$private_key\"" not in deploy_key_script
+    assert 'cat "$private_key"' not in deploy_key_script
     assert "git push origin main" not in deploy_key_script
 
 
@@ -178,3 +186,25 @@ def test_make_ci_and_runbooks_own_the_glue_020_workflow() -> None:
             "**Next**",
         ):
             assert field in document
+
+
+def test_infrastructure_mutation_targets_fail_closed_without_explicit_inputs() -> None:
+    plan = subprocess.run(
+        ["make", "--no-print-directory", "infra-plan", "AWS_PROFILE=", "AWS_REGION="],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert plan.returncode != 0
+    assert "ERROR: AWS_PROFILE is required." in plan.stderr
+
+    apply = subprocess.run(
+        ["make", "--no-print-directory", "infra-apply", "APPROVE_LAB_APPLY=0"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert apply.returncode != 0
+    assert "ERROR: set APPROVE_LAB_APPLY=1" in apply.stderr

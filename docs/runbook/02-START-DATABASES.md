@@ -1,11 +1,57 @@
 # 02 — Start and Verify the Databases
 
 Owners: `GLUE-010`, finalized by `GLUE-020`  
-Status: data-layer commands implemented by `GLUE-010`; EC2 provisioning is finalized by `GLUE-020`
+Status: implemented by `GLUE-010` and `GLUE-020`
 
 PostgreSQL and MongoDB run together on the disposable EC2 instance for the core lab. The Mac path at the end is optional and exists only for a quick developer smoke test. Both paths use the same Compose file, initialization scripts, deterministic fixtures, and assertions.
 
-## Core path — EC2 through Systems Manager
+## Recommended automated EC2 path
+
+**Purpose**
+
+Run the complete secret retrieval, startup, health, fixture, and commit-SHA checks through Systems Manager without opening SSH.
+
+**Run from**
+
+`Mac terminal — repository root`
+
+**Prerequisites**
+
+- Runbook 01 applied and verified the GLUE-020 foundation.
+- Both secret values exist.
+- The EC2 instance is `Online` in Systems Manager.
+
+**Inputs**
+
+The personal `AWS_PROFILE` and `AWS_REGION=us-east-1`; no database credential is entered or printed.
+
+**Command**
+
+```bash
+make ec2-bootstrap
+```
+
+**Expected result**
+
+The SSM invocation ends with `aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS`, both containers are healthy, deterministic counts pass, all invalid fixtures are rejected, and `.lab-commit-sha` matches the EC2 checkout.
+
+**Verify**
+
+Use the SSM invocation output and the read-only commands in runbook 01 Step 8. Do not publish the instance ID, private address, endpoints, or secret values.
+
+**Repeat, reset, or rollback**
+
+The command is safe to rerun. Use the project-scoped `make local-down RESET_VOLUMES=1` through SSM before a deliberate clean reseed.
+
+**If it fails**
+
+Continue with the manual diagnostic steps below; they expose each prerequisite and command separately without changing the architecture.
+
+**Next**
+
+After success, retain the recorded Git SHA and continue to runbook 03 only after GLUE-020 is merged.
+
+## Manual EC2 diagnostic path
 
 ### Step 1 — Confirm the reviewed repository checkout
 

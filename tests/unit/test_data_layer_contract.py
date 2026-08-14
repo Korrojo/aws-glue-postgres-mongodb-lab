@@ -172,10 +172,7 @@ def test_make_and_ci_own_the_complete_local_lifecycle() -> None:
 def test_database_runbook_replaces_the_template_with_executable_sections() -> None:
     runbook = (ROOT / "docs/runbook/02-START-DATABASES.md").read_text()
 
-    assert (
-        "Status: data-layer commands implemented by `GLUE-010`; "
-        "EC2 provisioning is finalized by `GLUE-020`" in runbook
-    )
+    assert "Status: implemented by `GLUE-010` and `GLUE-020`" in runbook
     assert "## Required completed sections" not in runbook
     assert "## Optional — Run the data layer on the Mac" in runbook
     for field in (
