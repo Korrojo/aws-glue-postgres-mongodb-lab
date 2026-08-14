@@ -33,17 +33,38 @@ umask 077
 
 "$aws_cli" --region "$aws_region" secretsmanager get-secret-value \
   --secret-id "/$project_name/postgres" --query SecretString --output text \
-  > "$tmp_dir/postgres.json"
+  >"$tmp_dir/postgres.json"
 "$aws_cli" --region "$aws_region" secretsmanager get-secret-value \
   --secret-id "/$project_name/mongodb" --query SecretString --output text \
-  > "$tmp_dir/mongodb.json"
+  >"$tmp_dir/mongodb.json"
+"$aws_cli" --region "$aws_region" secretsmanager get-secret-value \
+  --secret-id "/$project_name/mongodb-glue" --query SecretString --output text \
+  >"$tmp_dir/mongodb-glue.json"
 
-python3 - "$tmp_dir/postgres.json" "$tmp_dir/mongodb.json" "$env_file" <<'PY'
+python3 - "$tmp_dir/postgres.json" "$tmp_dir/mongodb.json" "$tmp_dir/mongodb-glue.json" "$env_file" <<'PY'
 import json
 import pathlib
 import sys
+
 postgres = json.loads(pathlib.Path(sys.argv[1]).read_text())
 mongodb = json.loads(pathlib.Path(sys.argv[2]).read_text())
+mongodb_glue = json.loads(pathlib.Path(sys.argv[3]).read_text())
+expected_postgres = {"host", "port", "database", "username", "password"}
+expected_mongodb = {"host", "port", "database", "root_username", "root_password"}
+expected_mongodb_glue = {"host", "port", "database", "username", "password"}
+for name, payload, expected in (
+    ("PostgreSQL", postgres, expected_postgres),
+    ("MongoDB bootstrap", mongodb, expected_mongodb),
+    ("MongoDB connector", mongodb_glue, expected_mongodb_glue),
+):
+    if set(payload) != expected or any(value in (None, "") for value in payload.values()):
+        raise SystemExit(f"ERROR: {name} secret schema is invalid.")
+if (
+    mongodb["host"] != mongodb_glue["host"]
+    or mongodb["port"] != mongodb_glue["port"]
+    or mongodb["database"] != mongodb_glue["database"]
+):
+    raise SystemExit("ERROR: MongoDB bootstrap and connector secrets target different databases.")
 values = {
     "AWS_REGION": "us-east-1",
     "DATABASE_BIND_ADDRESS": "0.0.0.0",
@@ -52,11 +73,11 @@ values = {
     "POSTGRES_PASSWORD": postgres["password"],
     "MONGO_INITDB_ROOT_USERNAME": mongodb["root_username"],
     "MONGO_INITDB_ROOT_PASSWORD": mongodb["root_password"],
-    "MONGO_DATABASE": mongodb["database"],
-    "MONGO_GLUE_USERNAME": mongodb["username"],
-    "MONGO_GLUE_PASSWORD": mongodb["password"],
+    "MONGO_DATABASE": mongodb_glue["database"],
+    "MONGO_GLUE_USERNAME": mongodb_glue["username"],
+    "MONGO_GLUE_PASSWORD": mongodb_glue["password"],
 }
-path = pathlib.Path(sys.argv[3])
+path = pathlib.Path(sys.argv[4])
 path.write_text("".join(f"{key}={value}\n" for key, value in values.items()))
 path.chmod(0o600)
 PY
@@ -64,7 +85,7 @@ PY
 if [[ "$reset_data" == "1" ]]; then
   compose_contract="$tmp_dir/compose-contract.json"
   docker compose --env-file "$env_file" -f docker/compose.yaml config --format json \
-    > "$compose_contract"
+    >"$compose_contract"
   python3 - "$compose_contract" <<'PY'
 import json
 import pathlib
@@ -88,7 +109,7 @@ fi
 make local-up
 make local-test
 rm -f "$env_file"
-git rev-parse HEAD > .lab-commit-sha
+git rev-parse HEAD >.lab-commit-sha
 printf 'git_sha=%s\n' "$(<.lab-commit-sha)"
 test ! -e "$env_file"
 printf 'temporary environment cleanup: PASS\n'

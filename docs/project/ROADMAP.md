@@ -7,9 +7,14 @@
 - `BLOCKED`
 - `PR OPEN`
 - `DONE`
-- `MERGED — PENDING LIVE VALIDATION`
 
-Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap.
+`DONE` means the reviewed implementation and credential-free development checks are complete. Live AWS execution is not a task status or agent acceptance gate; it is user-run only.
+
+Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-030` and `GLUE-040` are the explicit PR #5 grouping and therefore share one active branch.
+
+## Credential-free development acceptance
+
+Agents must never request or use AWS credentials or execute any AWS command. Static checks, mocks, Terraform validation/mock-provider tests, Python/Spark unit tests, and local container tests are sufficient for development completion. AWS deployment, crawler/job execution, connection tests, and teardown are **user-run only** after cloning the completed repository. No agent-run live AWS evidence is required. A later user-run failure must become a separate issue/PR.
 
 ## Summary
 
@@ -17,10 +22,10 @@ Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and 
 |---|---|---|---|---|
 | `GLUE-000` | DONE | [#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) | — | Governance and repository skeleton |
 | `GLUE-010` | DONE | [#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` | Containerized source/target and fixtures |
-| `GLUE-020` | MERGED — PENDING LIVE VALIDATION | [#3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
-| `GLUE-025` | PR OPEN | [#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) | `GLUE-020` | Foundation teardown and persistent-volume rotation correction |
-| `GLUE-030` | NOT STARTED | — | `GLUE-025` | Glue networking, connections, crawler, catalog |
-| `GLUE-040` | NOT STARTED | — | `GLUE-030` | PySpark transformation and MongoDB load |
+| `GLUE-020` | DONE | [#3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
+| `GLUE-025` | DONE | [#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) | `GLUE-020` | Foundation teardown and persistent-volume rotation correction |
+| `GLUE-030` | IN PROGRESS | PR #5 PLACEHOLDER | `GLUE-025` | Glue networking, connections, crawler, catalog |
+| `GLUE-040` | IN PROGRESS | PR #5 PLACEHOLDER | `GLUE-030` | PySpark transformation and MongoDB load |
 | `GLUE-050` | NOT STARTED | — | `GLUE-040` | Reconciliation and rerun validation |
 | `GLUE-060` | NOT STARTED | — | `GLUE-050` | Runbook, cleanup proof, final release |
 
@@ -139,7 +144,7 @@ PR grouping: PR 4 only
 - Post-destroy verification covers current Terraform-managed foundation resources only; final cross-service inventory remains `GLUE-060` work.
 - Secret rotation against persistent databases removes only Compose project `aws-glue-postgres-mongodb-lab` services and its `postgres_data` and `mongodb_data` volumes before deterministic reseed/tests.
 - No live AWS call, Docker start, resource creation, push, merge, or fabricated evidence occurs in this corrective implementation PR.
-- `GLUE-030` and later tasks remain `NOT STARTED`.
+- At the PR #4 checkpoint, `GLUE-030` and later tasks remained `NOT STARTED`.
 
 ## `GLUE-030` — Glue connections, crawler, and Data Catalog
 
@@ -148,16 +153,17 @@ PR grouping: PR 5 with `GLUE-040`
 
 ### To-do
 
-- [ ] Create the Glue Data Catalog database.
-- [ ] Create the PostgreSQL JDBC Glue connection using Secrets Manager and the lab VPC configuration.
-- [ ] Create the native MongoDB Glue connection using Secrets Manager and the same subnet/security topology.
-- [ ] Add only required Secrets Manager and S3 permissions to the Glue role.
-- [ ] Create a crawler restricted to `sales.orders` and `sales.order_items`.
-- [ ] Create an on-demand crawler invocation script.
-- [ ] Assert catalog tables and expected schemas after the crawl.
-- [ ] Upload Glue application artifacts to a documented lab S3 prefix. Avoid an artifact-release/versioning system; recording the Git SHA is sufficient.
-- [ ] Implement `make deploy` and `make crawl`.
-- [ ] Complete `docs/runbook/03-CONFIGURE-GLUE.md` in the same PR.
+- [x] Create the Glue Data Catalog database.
+- [x] Create the PostgreSQL JDBC Glue connection using Secrets Manager and the lab VPC configuration.
+- [x] Create the native MongoDB Glue connection using Secrets Manager and the same subnet/security topology.
+- [x] Add only required Secrets Manager and S3 permissions to the Glue role.
+- [x] Split MongoDB bootstrap administration from the connector-only secret so Glue cannot read root credentials.
+- [x] Create a crawler restricted to `sales.orders` and `sales.order_items`.
+- [x] Create an on-demand crawler invocation script.
+- [x] Assert catalog tables and expected schemas after the crawl.
+- [x] Upload Glue application artifacts to a documented lab S3 prefix. Avoid an artifact-release/versioning system; recording the Git SHA is sufficient.
+- [x] Implement `make deploy` and `make crawl`.
+- [x] Complete `docs/runbook/03-CONFIGURE-GLUE.md` in the same PR.
 
 ### Acceptance
 
@@ -166,6 +172,7 @@ PR grouping: PR 5 with `GLUE-040`
 - Crawler creates exactly the intended source tables.
 - Repeated crawler run does not create duplicate tables.
 - No crawler schedule is created.
+- Development acceptance uses Terraform mock-provider/static tests and fake-boundary script tests; actual connection and crawler behavior is user-run only and is not required PR evidence.
 
 ## `GLUE-040` — PySpark transformation and MongoDB load
 
@@ -174,21 +181,21 @@ PR grouping: PR 5 with `GLUE-030`
 
 ### To-do
 
-- [ ] Create pure transformation functions under `src/glue_lab/transformations.py`.
-- [ ] Create a thin Glue entry point under `glue/jobs/postgres_orders_to_mongodb.py`.
-- [ ] Read both source tables through the catalog.
-- [ ] Filter soft-deleted rows.
-- [ ] Validate keys, relationships, quantity, and price before transformation.
-- [ ] Normalize customer name, email, status, and timestamps.
-- [ ] Calculate exact decimal line totals and order totals.
-- [ ] Embed and sort items.
-- [ ] Produce deterministic `_id` from `order_id`.
-- [ ] Write to MongoDB with the named Glue connection and `replaceDocument=true`.
-- [ ] Parameterize database, collection, connection names, and snapshot mode without accepting credentials as arguments.
-- [ ] Add unit tests for mapping, nesting, ordering, decimals, null/error behavior, soft deletes, and multiple orders.
-- [ ] Add an integration smoke test that uses the real containers where feasible.
-- [ ] Implement `make run` and a job-status waiter with timeout and failure-log pointer.
-- [ ] Complete `docs/runbook/04-RUN-MIGRATION.md` in the same PR.
+- [x] Create pure transformation functions under `src/glue_lab/transformations.py`.
+- [x] Create a thin Glue entry point under `glue/jobs/postgres_orders_to_mongodb.py`.
+- [x] Read both source tables through the catalog.
+- [x] Filter soft-deleted rows.
+- [x] Validate keys, relationships, quantity, and price before transformation.
+- [x] Normalize customer name, email, status, and timestamps.
+- [x] Calculate exact decimal line totals and order totals.
+- [x] Embed and sort items.
+- [x] Produce deterministic `_id` from `order_id`.
+- [x] Write to MongoDB with the named Glue connection and `replaceDocument=true`.
+- [x] Parameterize database, collection, connection names, and snapshot mode without accepting credentials as arguments.
+- [x] Add unit tests for mapping, nesting, ordering, decimals, null/error behavior, soft deletes, and multiple orders.
+- [x] Retain credential-free data-layer container smoke coverage in CI; Spark/database connector execution remains user-run.
+- [x] Implement `make run` and a job-status waiter with timeout and failure-log pointer.
+- [x] Complete `docs/runbook/04-RUN-MIGRATION.md` in the same PR.
 
 ### Acceptance
 
@@ -197,6 +204,8 @@ PR grouping: PR 5 with `GLUE-030`
 - Invalid source data fails before target write.
 - One valid order produces one correctly nested document.
 - Credentials and full records do not appear in logs.
+- Initial snapshots and unchanged-source reruns are supported. `replaceDocument=true` does not delete a previously emitted target document after a later source soft delete; changed-source deletion convergence is explicitly deferred to detection/resolution in `GLUE-050` without destructive pre-load or CDC.
+- Development acceptance is credential-free unit/static/mock evidence. Running the Glue job and observing MongoDB output is user-run only and is not required PR evidence.
 
 ## `GLUE-050` — Reconciliation and rerun validation
 
@@ -217,6 +226,7 @@ PR grouping: PR 6 with `GLUE-060`
 - [ ] Run the Glue job twice against the same source.
 - [ ] Prove target count does not increase.
 - [ ] Modify one valid source order in a controlled test, rerun the snapshot, and prove the target document reflects the intended replacement behavior.
+- [ ] Change one previously emitted source order to soft-deleted, rerun, detect that `replaceDocument=true` does not delete the stale target document, and provide an explicit user-run resolution without claiming `GLUE-040` deletion convergence.
 - [ ] Implement `make validate` and `make rerun-test`.
 - [ ] Complete `docs/runbook/05-VALIDATE-AND-RERUN.md` in the same PR.
 
@@ -241,8 +251,8 @@ PR grouping: PR 6 with `GLUE-050`
 - [ ] Reuse the approval-gated `make destroy-lab` for the complete Terraform state and add final cross-service cleanup proof without weakening its exact project/plan binding.
 - [ ] Add `scripts/verify-destroyed.sh` for project-tagged resource checks.
 - [ ] Document manually removed resources, if any.
-- [ ] Run the complete lab from a clean checkout.
-- [ ] Capture redacted final evidence in the PR.
+- [ ] Run all credential-free command contracts from a clean checkout and record observed local/static/mock results.
+- [ ] Keep optional user-run release evidence separate from development acceptance.
 - [ ] Update README status and all roadmap tasks.
 
 ### Acceptance
@@ -250,7 +260,6 @@ PR grouping: PR 6 with `GLUE-050`
 - A clean Mac Mini can follow the linked runbooks without undocumented steps.
 - Every runnable step contains prerequisites, exact commands, expected result, verification, repeat/reset behavior, and focused troubleshooting.
 - Documentation does not assume prior AWS Glue, Terraform, PostgreSQL, MongoDB, or Docker knowledge.
-- Full E2E run passes.
-- `terraform destroy` succeeds.
-- Post-destroy verification finds no known project-tagged billable resource.
+- Credential-free clean-checkout checks and command contracts pass.
+- User-run E2E, destroy, and post-destroy results are optional user-run release evidence, not requirements for `DONE`; when supplied, record them separately and redact them.
 - No credential or live endpoint is present in repository history or PR evidence.

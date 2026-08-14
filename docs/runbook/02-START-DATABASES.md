@@ -3,6 +3,8 @@
 Owners: `GLUE-010`, finalized by `GLUE-020`; rotation correction by `GLUE-025`
 Status: implemented by `GLUE-010` and `GLUE-020`
 
+> **User-run only:** Agents must never request or use AWS credentials or execute the AWS/SSM path. No agent-run live AWS evidence is required; development uses static/mock/Terraform/unit/container checks. A later user-run failure belongs in a separate issue/PR. The optional local Compose path remains agent-safe when explicitly needed.
+
 PostgreSQL and MongoDB run together on the disposable EC2 instance for the core lab. The Mac path at the end is optional and exists only for a quick developer smoke test. Both paths use the same Compose file, initialization scripts, deterministic fixtures, and assertions.
 
 ## Recommended automated EC2 path
@@ -18,7 +20,7 @@ Run the complete secret retrieval, startup, health, fixture, and commit-SHA chec
 **Prerequisites**
 
 - Runbook 01 applied and verified the GLUE-020 foundation.
-- Both secret values exist.
+- All three secret values exist.
 - The EC2 instance is `Online` in Systems Manager.
 
 **Inputs**
@@ -41,7 +43,7 @@ Use the SSM invocation output and the read-only commands in runbook 01 Step 8. D
 
 **Repeat, reset, or rollback**
 
-The command is safe to rerun while secret values are unchanged. After `make secrets-put` rotates values for initialized named volumes, run `make ec2-reset-data`; `make ec2-bootstrap` alone does not rotate credentials stored inside those volumes.
+The command is safe to rerun while secret values are unchanged. After `APPROVE_LAB_SECRETS=1 make secrets-put` rotates values for initialized named volumes, run `make ec2-reset-data`; `make ec2-bootstrap` alone does not rotate credentials stored inside those volumes.
 
 **If it fails**
 
@@ -117,7 +119,7 @@ Continue to Step 2 to create the local runtime environment without displaying se
 
 **Purpose**
 
-Retrieve the two lab secret values with the EC2 instance role and write the exact environment contract required by Compose. Secret values are written only to a mode-`0600` local file and are never printed.
+Retrieve the three lab secret values with the EC2 instance role and write the exact environment contract required by Compose. Secret values are written only to a mode-`0600` local file and are never printed.
 
 **Run from**
 
@@ -129,8 +131,10 @@ Retrieve the two lab secret values with the EC2 instance role and write the exac
 - The EC2 instance role can read these secret containers:
   - `/aws-glue-postgres-mongodb-lab/postgres`
   - `/aws-glue-postgres-mongodb-lab/mongodb`
-- The PostgreSQL secret JSON contains `username`, `password`, and `database`.
-- The MongoDB secret JSON contains `root_username`, `root_password`, `username`, `password`, and `database`.
+  - `/aws-glue-postgres-mongodb-lab/mongodb-glue`
+- The PostgreSQL secret JSON contains only `host`, `port`, `database`, `username`, and `password`.
+- The MongoDB bootstrap secret contains only `host`, `port`, `database`, `root_username`, and `root_password`.
+- The MongoDB connector secret contains only `host`, `port`, `database`, `username`, and `password`.
 - `AWS_REGION` is `us-east-1`.
 
 **Inputs**
@@ -147,34 +151,50 @@ export DATABASE_BIND_ADDRESS="$(hostname -I | cut -d' ' -f1)"
 Run the complete block as one action:
 
 ```bash
+(
 set -euo pipefail
+set +x
 umask 077
+secret_tmp_dir="$(mktemp -d /tmp/glue-lab-secrets.XXXXXX)"
+chmod 700 "$secret_tmp_dir"
+cleanup_lab_secret_files() {
+  rm -rf "$secret_tmp_dir"
+  unset secret_tmp_dir
+}
+trap cleanup_lab_secret_files EXIT
 aws secretsmanager get-secret-value \
   --region "$AWS_REGION" \
   --secret-id /aws-glue-postgres-mongodb-lab/postgres \
   --query SecretString \
-  --output text > /tmp/glue-lab-postgres.json
+  --output text >"$secret_tmp_dir/postgres.json"
 aws secretsmanager get-secret-value \
   --region "$AWS_REGION" \
   --secret-id /aws-glue-postgres-mongodb-lab/mongodb \
   --query SecretString \
-  --output text > /tmp/glue-lab-mongodb.json
-python3 - <<'PY'
+  --output text >"$secret_tmp_dir/mongodb.json"
+aws secretsmanager get-secret-value \
+  --region "$AWS_REGION" \
+  --secret-id /aws-glue-postgres-mongodb-lab/mongodb-glue \
+  --query SecretString \
+  --output text >"$secret_tmp_dir/mongodb-glue.json"
+python3 - "$secret_tmp_dir/postgres.json" "$secret_tmp_dir/mongodb.json" \
+  "$secret_tmp_dir/mongodb-glue.json" <<'PY'
 import json
 import os
+import sys
 from pathlib import Path
 
-postgres = json.loads(Path("/tmp/glue-lab-postgres.json").read_text())
-mongodb = json.loads(Path("/tmp/glue-lab-mongodb.json").read_text())
-required_postgres = {"username", "password", "database"}
-required_mongodb = {
-    "root_username",
-    "root_password",
-    "username",
-    "password",
-    "database",
-}
-if not required_postgres <= postgres.keys() or not required_mongodb <= mongodb.keys():
+postgres = json.loads(Path(sys.argv[1]).read_text())
+mongodb = json.loads(Path(sys.argv[2]).read_text())
+mongodb_glue = json.loads(Path(sys.argv[3]).read_text())
+required_postgres = {"host", "port", "username", "password", "database"}
+required_mongodb = {"host", "port", "root_username", "root_password", "database"}
+required_mongodb_glue = {"host", "port", "username", "password", "database"}
+if (
+    set(postgres) != required_postgres
+    or set(mongodb) != required_mongodb
+    or set(mongodb_glue) != required_mongodb_glue
+):
     raise SystemExit("secret JSON is missing required keys")
 lines = {
     "DATABASE_BIND_ADDRESS": os.environ["DATABASE_BIND_ADDRESS"],
@@ -183,21 +203,23 @@ lines = {
     "POSTGRES_PASSWORD": postgres["password"],
     "MONGO_INITDB_ROOT_USERNAME": mongodb["root_username"],
     "MONGO_INITDB_ROOT_PASSWORD": mongodb["root_password"],
-    "MONGO_DATABASE": mongodb["database"],
-    "MONGO_GLUE_USERNAME": mongodb["username"],
-    "MONGO_GLUE_PASSWORD": mongodb["password"],
+    "MONGO_DATABASE": mongodb_glue["database"],
+    "MONGO_GLUE_USERNAME": mongodb_glue["username"],
+    "MONGO_GLUE_PASSWORD": mongodb_glue["password"],
 }
 if any(not str(value) for value in lines.values()):
     raise SystemExit("secret JSON contains an empty required value")
 Path(".env").write_text("".join(f"{key}={value}\n" for key, value in lines.items()))
 PY
 chmod 600 .env
-rm -f /tmp/glue-lab-postgres.json /tmp/glue-lab-mongodb.json
+cleanup_lab_secret_files
+trap - EXIT
+)
 ```
 
 **Expected result**
 
-The block exits `0`, prints no secret value, creates `.env` with mode `0600`, and removes both temporary JSON files.
+The block exits `0`, prints no secret value, creates `.env` with mode `0600`, and removes all three temporary JSON files.
 
 **Verify**
 
@@ -244,7 +266,7 @@ Safe to repeat because the command replaces `.env`, but replacing `.env` does no
   ```
 
 - Correct: complete the `GLUE-020` secret-seeding step or correct the instance-role permission.
-- Retry: remove the two `/tmp/glue-lab-*.json` files and repeat Step 2.
+- Retry: the EXIT trap removes the mode-`0700` temporary directory automatically; verify no `/tmp/glue-lab-secrets.*` directory from the failed attempt remains, then repeat Step 2.
 
 **Next**
 

@@ -31,6 +31,12 @@ When the later roadmap tasks are implemented and the lab is run, it creates:
 
 It does not create a NAT Gateway, public database ingress, scheduled jobs, remote Terraform state, or CI deployment credentials.
 
+## Execution ownership
+
+Repository development is credential-free. Hermes, Codex, and development agents must never request or use AWS credentials and do not deploy, crawl, run, test connections, or tear down AWS resources. Static/mock/Terraform validation/Python unit/local container evidence is sufficient; no agent-run live AWS evidence is required.
+
+Every AWS operation in the runbooks is **User-run only** after you clone completed reviewed code. If that user-run lab later fails, report it in a separate issue/PR.
+
 ## Time and cost
 
 Plan approximately two to three hours for a first guided run. A short, promptly destroyed session is intended to cost only a few US dollars, but that is an estimate rather than a quote; current AWS prices, runtime, and retries determine the actual charge. Do not leave the lab running overnight.
@@ -71,4 +77,4 @@ You will need a personal AWS account, GitHub access, a Mac terminal, Git, AWS CL
 
 ## Current status
 
-`GLUE-000` and `GLUE-010` are complete in [PR #1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) and [PR #2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2). `GLUE-020` — the disposable AWS foundation and EC2 workflow from [PR #3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) — is **MERGED — PENDING LIVE VALIDATION**. `GLUE-025` is **PR OPEN** in [PR #4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) for the focused foundation destroy flow and persistent-volume secret-rotation reset before Glue work begins. `GLUE-030` and later tasks remain not started. See the [roadmap](docs/project/ROADMAP.md) for task ownership and status.
+`GLUE-000`, `GLUE-010`, `GLUE-020`, and `GLUE-025` are **DONE** in [PR #1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1), [PR #2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2), [PR #3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3), and [PR #4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4). `GLUE-030` and `GLUE-040` are **IN PROGRESS** together on the PR #5 placeholder branch for Glue metadata, the crawler, and the snapshot ETL. `GLUE-050` and `GLUE-060` remain not started. See the [roadmap](docs/project/ROADMAP.md) for task ownership and status.

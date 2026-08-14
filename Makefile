@@ -24,14 +24,19 @@ help: ## Show governance checks and roadmap-owned future targets.
 		'  make local-status      Show container status' \
 		'  make local-test        Run source, invalid-fixture, and target assertions' \
 		'  make local-down        Stop containers; add RESET_VOLUMES=1 to reseed' \
-		'  make terraform-check   Validate and mock-test the AWS foundation' \
+		'  make terraform-check   Validate and mock-test the complete Terraform root' \
+		'' \
+		'USER-RUN ONLY AWS operations (agents never execute these):' \
 		'  make doctor            Verify personal AWS and local prerequisites' \
 		'  make infra-init        Initialize pinned Terraform providers' \
 		'  make infra-plan        Save a reviewable local lab plan' \
 		'  make infra-apply       Apply only after APPROVE_LAB_APPLY=1' \
-		'  make secrets-put       Generate and store both database secrets' \
+		'  make secrets-put       Store secrets after APPROVE_LAB_SECRETS=1' \
 		'  make ec2-bootstrap     Start/test databases through SSM' \
 		'  make ec2-reset-data    Reset only this project data after secret rotation' \
+		'  make deploy            Upload after APPROVE_GLUE_DEPLOY=1' \
+		'  make crawl             Crawl after APPROVE_GLUE_CRAWL=1' \
+		'  make run               Run job after APPROVE_GLUE_RUN=1' \
 		'  make destroy-plan      Save a review-bound Terraform destroy plan' \
 		'  make destroy-lab       Apply only after APPROVE_LAB_DESTROY=1' \
 		'' \
@@ -45,8 +50,8 @@ format-check: ## Check Python formatting without modifying files.
 lint: ## Lint Python files without modifying files.
 	@$(RUFF) check .
 
-unit-test: ## Run governance and unit tests without AWS or containers.
-	@$(PYTEST) tests/unit -q
+unit-test: ## Run credential-free unit tests, including small local Spark DataFrames.
+	@PYTHONPATH=src $(PYTEST) tests/unit -q
 
 compose-check: ## Validate Compose syntax with generated throwaway credentials.
 	@if ! command -v docker >/dev/null 2>&1; then \
@@ -95,7 +100,7 @@ infra-apply: ## Apply only the account/Region/Git/hash-bound reviewed plan.
 	@APPROVE_LAB_APPLY="$(APPROVE_LAB_APPLY)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/terraform-apply.sh
 
 secrets-put: ## Generate fresh values and store them without printing them.
-	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/put-lab-secrets.sh
+	@APPROVE_LAB_SECRETS="$(APPROVE_LAB_SECRETS)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/put-lab-secrets.sh
 
 ec2-bootstrap: ## Start and validate the databases through SSM.
 	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-ssm-bootstrap.sh
@@ -114,11 +119,14 @@ define fail_not_implemented
 	@exit 2
 endef
 
-deploy crawl:
-	$(call fail_not_implemented,GLUE-030)
+deploy: ## USER-RUN ONLY: upload Glue code to the deterministic artifact prefix.
+	@APPROVE_GLUE_DEPLOY="$(APPROVE_GLUE_DEPLOY)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/deploy-glue-code.sh
 
-run:
-	$(call fail_not_implemented,GLUE-040)
+crawl: ## USER-RUN ONLY: run the unscheduled crawler with a bounded waiter.
+	@APPROVE_GLUE_CRAWL="$(APPROVE_GLUE_CRAWL)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-glue-crawler.sh
+
+run: ## USER-RUN ONLY: run the Glue snapshot job with a bounded waiter.
+	@APPROVE_GLUE_RUN="$(APPROVE_GLUE_RUN)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-glue-job.sh
 
 validate rerun-test:
 	$(call fail_not_implemented,GLUE-050)

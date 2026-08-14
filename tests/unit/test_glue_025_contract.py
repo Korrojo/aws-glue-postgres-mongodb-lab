@@ -329,42 +329,30 @@ def test_ec2_secret_rotation_reset_is_exactly_compose_project_scoped() -> None:
     )
     assert "make ec2-reset-data" in secret_script
     assert "make ec2-bootstrap alone" in secret_script
+    assert "/$project_name/mongodb-glue" in bootstrap_script
 
 
-def test_glue_025_status_and_personal_account_live_validation_contract() -> None:
+def test_foundation_status_and_user_run_only_governance_contract() -> None:
     readme = (ROOT / "README.md").read_text()
     roadmap = (ROOT / "docs/project/ROADMAP.md").read_text()
     deploy_runbook = (ROOT / "docs/runbook/01-DEPLOY-INFRASTRUCTURE.md").read_text()
     database_runbook = (ROOT / "docs/runbook/02-START-DATABASES.md").read_text()
     destroy_runbook = (ROOT / "docs/runbook/06-DESTROY.md").read_text()
 
-    exact_status = "MERGED — PENDING LIVE VALIDATION"
-    assert exact_status in readme
-    assert f"| `GLUE-020` | {exact_status} |" in roadmap
-    assert (
-        "| `GLUE-025` | PR OPEN | "
-        "[#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) |"
-    ) in roadmap
-    assert "Branch: `agent/hermes-codex/glue-025-foundation-cleanup`" in roadmap
-    for task in ("GLUE-030", "GLUE-040", "GLUE-050", "GLUE-060"):
+    assert "MERGED — PENDING LIVE VALIDATION" not in readme
+    assert "MERGED — PENDING LIVE VALIDATION" not in roadmap
+    assert "| `GLUE-020` | DONE |" in roadmap
+    assert "| `GLUE-025` | DONE |" in roadmap
+    for task in ("GLUE-030", "GLUE-040"):
+        assert f"| `{task}` | IN PROGRESS | PR #5 PLACEHOLDER |" in roadmap
+    for task in ("GLUE-050", "GLUE-060"):
         assert f"| `{task}` | NOT STARTED |" in roadmap
 
-    checklist = [
-        "make doctor",
-        "make infra-plan",
-        "review the saved infrastructure plan",
-        "APPROVE_LAB_APPLY=1 make infra-apply",
-        "make secrets-put",
-        "make ec2-bootstrap",
-        "make destroy-plan",
-        "review the saved destroy plan",
-        "APPROVE_LAB_DESTROY=1 make destroy-lab",
-        "confirm Terraform-managed resource removal",
-    ]
-    combined_foundation_docs = deploy_runbook + destroy_runbook
-    positions = [combined_foundation_docs.index(item) for item in checklist]
-    assert positions == sorted(positions)
-    assert "Do not fabricate evidence" in combined_foundation_docs
+    combined_foundation_docs = deploy_runbook + database_runbook + destroy_runbook
+    assert "User-run only" in combined_foundation_docs
+    assert "Agents must never request or use AWS credentials" in combined_foundation_docs
+    assert "separate issue/PR" in combined_foundation_docs
+    assert "No agent-run live AWS evidence is required" in combined_foundation_docs
     for forbidden_evidence in (
         "AWS account IDs",
         "principal ARNs",

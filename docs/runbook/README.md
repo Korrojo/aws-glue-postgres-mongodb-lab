@@ -2,6 +2,8 @@
 
 The root README introduces the lab. These files are the executable lab manual.
 
+> **User-run only:** every AWS command in these runbooks is executed only by the user after cloning completed reviewed code. Agents must never request or use AWS credentials. No agent-run live AWS evidence is required; static/mock/Terraform validation/Python unit/local container evidence completes development. A user-run failure becomes a separate issue/PR.
+
 Run the primary path in order:
 
 | Order | Runbook | Outcome |
@@ -25,5 +27,5 @@ Neither optional path is required to complete the core Glue lab.
 
 ## Rule for implementation PRs
 
-These files begin as controlled templates. The task that implements a component must replace every implementation marker in the corresponding runbook with observed commands and results. A task cannot be marked `DONE` while its runbook contains missing commands, unverified output, or undocumented reset behavior.
+These files begin as controlled templates. The task that implements a component replaces every implementation marker with complete user-run commands and expected results plus credential-free static/mock/unit coverage. A task cannot be marked `DONE` while its runbook contains missing commands or undocumented reset behavior. User-run AWS output is not an agent acceptance gate.
 

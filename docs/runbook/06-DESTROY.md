@@ -3,6 +3,8 @@
 Owner: `GLUE-025` for the current Terraform-managed foundation; final cross-service cleanup remains `GLUE-060`
 Status: foundation destroy implemented by `GLUE-025`
 
+> **User-run only:** Agents must never request or use AWS credentials or execute this destroy flow. No agent-run live AWS evidence is required; development uses static/mock/Terraform/unit/container checks. A later user-run failure belongs in a separate issue/PR.
+
 Stopping EC2 is not cleanup. The VPC endpoints, S3 bucket, secrets, IAM resources, networking, and EC2 instance remain until Terraform removes them. This corrective runbook destroys and verifies only the resources currently managed by the exact local foundation state. `GLUE-060` final cost inventory, later Glue resource verification, optional GitHub deploy-key retirement, and complete cross-service project-tag scan are explicitly deferred.
 
 > [!CAUTION]
@@ -23,7 +25,7 @@ Fail before plan creation if the operator, repository, Terraform root, Region, o
 - The lab was applied from this checkout and its local `infrastructure/terraform/terraform.tfstate` remains available.
 - The repository working tree is clean.
 - The selected profile is the intended personal account.
-- The personal-account live-validation sequence has already completed `make doctor`, `make infra-plan`, review the saved infrastructure plan, approved `APPROVE_LAB_APPLY=1 make infra-apply`, `make secrets-put`, and `make ec2-bootstrap` in that order.
+- The personal-account live-validation sequence has already completed `make doctor`, `make infra-plan`, review the saved infrastructure plan, approved `APPROVE_LAB_APPLY=1 make infra-apply`, `APPROVE_LAB_SECRETS=1 make secrets-put`, and `make ec2-bootstrap` in that order.
 
 **Inputs**
 
@@ -62,10 +64,11 @@ Every `test` exits `0`, and `make doctor` ends with `doctor: PASS` for the inten
 test "$(terraform -chdir=infrastructure/terraform output -raw aws_region)" = us-east-1
 test "$(terraform -chdir=infrastructure/terraform output -raw postgres_secret_name)" = /aws-glue-postgres-mongodb-lab/postgres
 test "$(terraform -chdir=infrastructure/terraform output -raw mongodb_secret_name)" = /aws-glue-postgres-mongodb-lab/mongodb
+test "$(terraform -chdir=infrastructure/terraform output -raw mongodb_glue_secret_name)" = /aws-glue-postgres-mongodb-lab/mongodb-glue
 terraform -chdir=infrastructure/terraform state list
 ```
 
-Pass: the three `test` commands exit `0`, and the state list contains the expected current foundation resources, including `aws_vpc.lab` and `aws_instance.database_host`. Do not publish the full list when it contains live identifiers in indexed instances.
+Pass: the four `test` commands exit `0`, and the state list contains the expected current resources, including `aws_vpc.lab`, `aws_instance.database_host`, and all three secret containers. Do not publish the full list when it contains live identifiers in indexed instances.
 
 **Repeat, reset, or rollback**
 

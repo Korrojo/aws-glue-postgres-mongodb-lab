@@ -22,9 +22,6 @@ RUNBOOKS = [
 ]
 
 UNIMPLEMENTED_TARGETS = {
-    "deploy": "GLUE-030",
-    "crawl": "GLUE-030",
-    "run": "GLUE-040",
     "validate": "GLUE-050",
     "rerun-test": "GLUE-050",
     "cost-check": "GLUE-060",
@@ -107,7 +104,7 @@ def test_future_make_target_fails_with_roadmap_owner(target: str, owner: str) ->
     )
 
 
-def test_design_blueprint_directories_exist_without_future_components() -> None:
+def test_design_blueprint_directories_and_current_components_exist() -> None:
     expected_directories = [
         "docker/mongodb/init",
         "docker/postgres/init",
@@ -121,9 +118,14 @@ def test_design_blueprint_directories_exist_without_future_components() -> None:
     for relative_path in expected_directories:
         assert (ROOT / relative_path).is_dir()
 
-    future_files = [
+    current_files = [
         "glue/jobs/postgres_orders_to_mongodb.py",
         "src/glue_lab/transformations.py",
+    ]
+    for relative_path in current_files:
+        assert (ROOT / relative_path).is_file()
+
+    future_files = [
         "src/glue_lab/validation.py",
         "validation/reconcile.py",
     ]
@@ -131,39 +133,29 @@ def test_design_blueprint_directories_exist_without_future_components() -> None:
         assert not (ROOT / relative_path).exists()
 
 
-def test_roadmap_records_foundation_merge_and_only_glue_025_active() -> None:
+def test_roadmap_records_merged_foundation_and_grouped_glue_work() -> None:
     roadmap = (ROOT / "docs/project/ROADMAP.md").read_text()
 
-    expected_status = (
-        "| `GLUE-000` | DONE | "
-        "[#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) |"
-    )
-    assert expected_status in roadmap
-    glue_010_status = (
-        "| `GLUE-010` | DONE | "
-        "[#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` |"
-    )
-    assert glue_010_status in roadmap
-    glue_010_section = roadmap.split("## `GLUE-010`", maxsplit=1)[1].split(
-        "## `GLUE-020`", maxsplit=1
-    )[0]
-    assert "- [ ]" not in glue_010_section
-    glue_020_status = (
-        "| `GLUE-020` | MERGED — PENDING LIVE VALIDATION | "
-        "[#3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) | `GLUE-010` |"
-    )
-    assert glue_020_status in roadmap
-    glue_020_section = roadmap.split("## `GLUE-020`", maxsplit=1)[1].split(
-        "## `GLUE-025`", maxsplit=1
-    )[0]
-    assert "- [ ]" not in glue_020_section
-    assert (
-        "| `GLUE-025` | PR OPEN | "
-        "[#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) | `GLUE-020` |"
-    ) in roadmap
-    glue_025_section = roadmap.split("## `GLUE-025`", maxsplit=1)[1].split(
-        "## `GLUE-030`", maxsplit=1
-    )[0]
-    assert "- [ ]" not in glue_025_section
-    for task_number in range(30, 61, 10):
-        assert f"| `GLUE-{task_number:03d}` | NOT STARTED |" in roadmap
+    for task, pr in (("GLUE-000", 1), ("GLUE-010", 2), ("GLUE-020", 3), ("GLUE-025", 4)):
+        assert (
+            f"| `{task}` | DONE | "
+            f"[#{pr}](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/{pr}) |"
+        ) in roadmap
+    assert "MERGED — PENDING LIVE VALIDATION" not in roadmap
+    for task in ("GLUE-030", "GLUE-040"):
+        assert f"| `{task}` | IN PROGRESS | PR #5 PLACEHOLDER |" in roadmap
+    for task in ("GLUE-050", "GLUE-060"):
+        assert f"| `{task}` | NOT STARTED |" in roadmap
+
+
+def test_governance_separates_local_command_proof_from_optional_user_run_evidence() -> None:
+    acceptance = (ROOT / "docs/project/ACCEPTANCE_CRITERIA.md").read_text()
+    roadmap = (ROOT / "docs/project/ROADMAP.md").read_text()
+
+    assert "credential-free command-contract execution" in acceptance
+    assert "APPROVE_LAB_APPLY=1 make infra-apply" in acceptance
+    assert "APPROVE_LAB_DESTROY=1 make destroy-lab" in acceptance
+    glue_060 = roadmap.split("## `GLUE-060`", maxsplit=1)[1]
+    assert "optional user-run release evidence" in glue_060
+    assert "- Full E2E run passes." not in glue_060
+    assert "- `terraform destroy` succeeds." not in glue_060

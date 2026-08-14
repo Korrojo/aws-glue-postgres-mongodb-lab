@@ -39,8 +39,13 @@ output "postgres_secret_name" {
 }
 
 output "mongodb_secret_name" {
-  description = "MongoDB secret container name; the value is seeded separately."
+  description = "MongoDB bootstrap administrator secret container name; the value is seeded separately."
   value       = aws_secretsmanager_secret.mongodb.name
+}
+
+output "mongodb_glue_secret_name" {
+  description = "MongoDB connector-only secret container name; the value is seeded separately."
+  value       = aws_secretsmanager_secret.mongodb_glue.name
 }
 
 output "database_instance_id" {
@@ -49,11 +54,41 @@ output "database_instance_id" {
 }
 
 output "database_private_ip" {
-  description = "Private database host address used in the two secret values."
+  description = "Private database host address used in the three secret values."
   value       = aws_instance.database_host.private_ip
 }
 
 output "glue_role_arn" {
-  description = "IAM role used by later Glue tasks."
+  description = "IAM role used by the Glue crawler and job."
   value       = aws_iam_role.glue.arn
+}
+
+output "glue_catalog_database_name" {
+  description = "Catalog database containing exactly the two sales source tables."
+  value       = aws_glue_catalog_database.lab.name
+}
+
+output "postgres_glue_connection_name" {
+  description = "Named PostgreSQL JDBC connection."
+  value       = aws_glue_connection.postgres.name
+}
+
+output "mongodb_glue_connection_name" {
+  description = "Named native MongoDB connection."
+  value       = aws_glue_connection.mongodb.name
+}
+
+output "glue_crawler_name" {
+  description = "Unscheduled crawler started only by the user."
+  value       = aws_glue_crawler.orders.name
+}
+
+output "glue_job_name" {
+  description = "Unscheduled Glue 5.1 snapshot job started only by the user."
+  value       = aws_glue_job.orders_to_mongodb.name
+}
+
+output "glue_artifact_prefix" {
+  description = "Deterministic S3 prefix used by the artifact deployment script."
+  value       = "s3://${aws_s3_bucket.artifacts.id}/glue/artifacts/"
 }

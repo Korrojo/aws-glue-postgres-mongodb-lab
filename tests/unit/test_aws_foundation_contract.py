@@ -46,7 +46,7 @@ def test_foundation_has_one_lab_path_and_no_forbidden_enterprise_components() ->
     assert types.count("aws_vpc_endpoint") == 2
     assert types.count("aws_instance") == 1
     assert types.count("aws_s3_bucket") == 1
-    assert types.count("aws_secretsmanager_secret") == 2
+    assert types.count("aws_secretsmanager_secret") == 3
     assert "aws_nat_gateway" not in types
     assert "aws_eip" not in types
     assert "aws_lb" not in types
@@ -128,11 +128,12 @@ def test_storage_secrets_iam_and_ec2_follow_the_design() -> None:
 
     assert re.search(r'name\s*=\s*"/\$\{local\.project_name\}/postgres"', text)
     assert re.search(r'name\s*=\s*"/\$\{local\.project_name\}/mongodb"', text)
+    assert re.search(r'name\s*=\s*"/\$\{local\.project_name\}/mongodb-glue"', text)
     assert "secret_string" not in text
 
     for required in (
         "set -euo pipefail",
-        "dnf install -y docker git make python3",
+        "dnf install -y docker git jq make python3",
         "systemctl enable --now docker",
         'git clone --branch "${repository_ref}"',
         "/opt/aws-glue-postgres-mongodb-lab",
@@ -165,12 +166,23 @@ def test_glue_020_scripts_are_strict_scoped_and_nonsecret() -> None:
         assert "set -x" not in content
 
     secret_script = (scripts / "put-lab-secrets.sh").read_text()
+    assert 'source "$repo_root/scripts/lib/user-run-aws-guard.sh"' in secret_script
+    assert '"APPROVE_LAB_SECRETS"' in secret_script
     assert "secrets.token_hex" in secret_script
     assert "put-secret-value" in secret_script
     assert "SecretString" not in secret_script
-    assert "get-caller-identity" in secret_script
-    assert "aws_account_id" in secret_script
-    assert "does not match Terraform state" in secret_script
+    assert "require_user_run_aws" in secret_script
+    assert secret_script.count("secretsmanager put-secret-value") == 3
+    assert '"root_username": "lab_root"' in secret_script
+    assert '"username": "glue_writer"' in secret_script
+    admin_payload = secret_script.split("pathlib.Path(mongodb_path).write_text", 1)[1].split(
+        "pathlib.Path(mongodb_glue_path).write_text", 1
+    )[0]
+    connector_payload = secret_script.split("pathlib.Path(mongodb_glue_path).write_text", 1)[
+        1
+    ].split("PY", 1)[0]
+    assert '"root_username"' in admin_payload and '"username"' not in admin_payload
+    assert '"root_username"' not in connector_payload and '"username"' in connector_payload
 
     plan_script = (scripts / "terraform-plan.sh").read_text()
     apply_script = (scripts / "terraform-apply.sh").read_text()
@@ -183,6 +195,9 @@ def test_glue_020_scripts_are_strict_scoped_and_nonsecret() -> None:
 
     bootstrap_script = (scripts / "bootstrap-ec2.sh").read_text()
     assert 'rm -f "$env_file"' in bootstrap_script
+    assert "/$project_name/mongodb-glue" in bootstrap_script
+    assert 'mongodb_glue["username"]' in bootstrap_script
+    assert 'mongodb["port"] != mongodb_glue["port"]' in bootstrap_script
 
     ssm_script = (scripts / "run-ssm-bootstrap.sh").read_text()
     assert "ssm wait command-executed" not in ssm_script
@@ -219,6 +234,7 @@ def test_make_ci_and_runbooks_own_the_glue_020_workflow() -> None:
     assert "terraform test" in workflow
     assert "./scripts/terraform-plan.sh" in makefile
     assert "./scripts/terraform-apply.sh" in makefile
+    assert 'APPROVE_LAB_SECRETS="$(APPROVE_LAB_SECRETS)"' in makefile
 
     prerequisites = (ROOT / "docs/runbook/00-PREREQUISITES.md").read_text()
     infrastructure = (ROOT / "docs/runbook/01-DEPLOY-INFRASTRUCTURE.md").read_text()
@@ -279,3 +295,18 @@ def test_infrastructure_mutation_targets_fail_closed_without_explicit_inputs() -
     )
     assert unbound_apply.returncode != 0
     assert "ERROR: AWS_PROFILE is required." in unbound_apply.stderr
+
+    secrets = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "secrets-put",
+            "APPROVE_LAB_SECRETS=0",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert secrets.returncode != 0
+    assert "ERROR: set APPROVE_LAB_SECRETS=1" in secrets.stderr

@@ -4,7 +4,7 @@ set -euo pipefail
 
 exec > >(tee -a /var/log/aws-glue-lab-bootstrap.log) 2>&1
 
-dnf install -y docker git make python3
+dnf install -y docker git jq make python3
 systemctl enable --now docker
 systemctl enable --now amazon-ssm-agent
 usermod -aG docker ec2-user

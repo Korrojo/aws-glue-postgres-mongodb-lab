@@ -9,6 +9,12 @@
 - Hermes coordinates tasks and reports results.
 - Codex workers implement only the bounded assignment they receive.
 
+## AWS execution boundary
+
+AWS execution is owned only by the user after cloning completed reviewed code. Hermes, Codex, and workers must never request, obtain, or use AWS credentials and must never run live Terraform operations, AWS CLI calls, SSM commands, Secrets Manager commands, Glue connection tests, crawlers, jobs, or teardown validation. No agent-run live AWS evidence is required.
+
+Agent review and task completion use credential-free static validation, mocked boundaries, Terraform validation and mock-provider tests, Python/Spark unit tests, and local container tests. User-run AWS instructions remain copyable and must be labeled **User-run only**. A later user-run lab failure is reported in a separate issue/PR.
+
 ## Required workflow
 
 1. Hermes selects the next unblocked task from `ROADMAP.md`.
@@ -23,8 +29,8 @@
    - dependency and design references.
 4. The worker reads the repository instructions before editing.
 5. The worker implements and tests on the assigned branch.
-6. The worker completes the affected runbook instructions using observed commands and results in the same branch.
-7. Hermes reviews the diff, checks scope and documentation completeness, runs or verifies required tests, and updates the roadmap.
+6. The worker completes affected runbook instructions, labeling AWS commands **User-run only** and using observed local/static/mock results in the same branch.
+7. Hermes reviews the diff, checks scope and documentation completeness, runs or verifies only credential-free required tests, and updates the roadmap.
 8. Hermes opens a PR using the template and stops for Demes's review.
 9. Demes decides whether to merge.
 

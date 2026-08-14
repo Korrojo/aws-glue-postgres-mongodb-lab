@@ -6,7 +6,9 @@ The README alone is not the lab manual. It introduces the lab, shows the overall
 
 The runbooks must allow someone on a clean Mac Mini to complete the lab without guessing what a command means, where it runs, which value to replace, what success looks like, or how to recover from a common failure.
 
-Documentation is part of implementation. A component is not complete until its runbook is complete and observed against the current code.
+Documentation is part of implementation. A component is complete when its runbook is complete and its command contract is covered by credential-free static/mock tests. AWS commands are **User-run only** and are not executed by development agents.
+
+Hermes, Codex, and development agents must never request or use AWS credentials. No agent-run live AWS evidence is required. User-run AWS output may be added later only when the user supplies a redacted result; a user-run failure becomes a separate issue/PR.
 
 ## Audience
 
@@ -235,9 +237,9 @@ A PR that adds or changes a runnable command fails documentation review when any
 - Is there a verification command and pass condition?
 - Is rerun/reset behavior stated?
 - Are likely failures diagnosed without architectural expansion?
-- Was the documentation executed against the current branch?
+- Is AWS execution clearly labeled **User-run only**, with development verification limited to static/mock/unit/container evidence?
 
-No `TODO`, placeholder instruction, stale command, or unobserved expected output may remain when the owning component task is marked `DONE`.
+No `TODO`, placeholder instruction, stale command, or untested command contract may remain when the owning component task is marked `DONE`. User-run AWS results are explicitly outside agent development completion.
 
 ## Example: unacceptable and acceptable instructions
 
