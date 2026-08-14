@@ -592,7 +592,7 @@ The live state from Step 5 exists.
 
 **Inputs**
 
-The same personal AWS profile and Region.
+The same personal AWS profile and Region, with the ambient credential and Terraform override variables listed in runbook 06 Step 1 unset so AWS CLI and Terraform use the same approved profile, default workspace, and local state.
 
 **Command**
 

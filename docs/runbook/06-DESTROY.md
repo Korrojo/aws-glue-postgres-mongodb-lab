@@ -27,12 +27,18 @@ Fail before plan creation if the operator, repository, Terraform root, Region, o
 
 **Inputs**
 
-Set the personal profile and the fixed Region; replace `personal-glue-lab` only with the local profile name for the intended personal account:
+Unset ambient credential sources so both AWS CLI and Terraform must use the approved profile. Then set the personal profile and fixed Region; replace `personal-glue-lab` only with the local profile name for the intended personal account:
 
 ```bash
-export AWS_PROFILE=personal-glue-lab
-export AWS_REGION=us-east-1
-export AWS_DEFAULT_REGION=us-east-1
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
+unset AWS_WEB_IDENTITY_TOKEN_FILE AWS_ROLE_ARN AWS_ROLE_SESSION_NAME
+unset AWS_CONTAINER_CREDENTIALS_RELATIVE_URI AWS_CONTAINER_CREDENTIALS_FULL_URI
+unset AWS_CONTAINER_AUTHORIZATION_TOKEN AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
+unset TF_WORKSPACE TF_DATA_DIR TF_CLI_ARGS
+unset TF_CLI_ARGS_plan TF_CLI_ARGS_apply TF_CLI_ARGS_destroy TF_CLI_ARGS_state
+export AWS_PROFILE="personal-glue-lab"
+export AWS_REGION="us-east-1"
+export AWS_DEFAULT_REGION="us-east-1"
 ```
 
 **Command**
@@ -48,7 +54,7 @@ make doctor
 
 **Expected result**
 
-Every `test` exits `0`, and `make doctor` ends with `doctor: PASS` for the intended personal identity and `us-east-1`. No state or identity value is copied into tracked files.
+Every `test` exits `0`, and `make doctor` ends with `doctor: PASS` for the intended personal identity and `us-east-1`. The guarded destroy scripts additionally reject any remaining `TF_CLI_ARGS_*` variable, require Terraform workspace `default`, and compare the active state lineage/serial with the exact local `terraform.tfstate`. No state or identity value is copied into tracked files.
 
 **Verify**
 
@@ -102,7 +108,7 @@ terraform -chdir=infrastructure/terraform show destroy.tfplan
 
 **Expected result**
 
-`make destroy-plan` reports project/state and AWS/state identity passes, then saves ignored `destroy.tfplan` and mode-`0600` `.destroy.tfplan.identity.json`. The metadata binds the exact roots, state lineage and serial, state resource-set hash, account, profile, Region, Git SHA, and destroy-plan SHA-256. `terraform show` displays destroy actions only for resources currently managed by this foundation state.
+`make destroy-plan` first verifies Terraform workspace `default` and proves the active state lineage/serial match the exact local `terraform.tfstate`. It then reports project/state and AWS/state identity passes and saves ignored `destroy.tfplan` plus mode-`0600` `.destroy.tfplan.identity.json`. The metadata identifies the operation as `destroy` and binds the exact roots, state lineage and serial, state resource-set hash, account/principal, profile, Region, Git SHA, and destroy-plan SHA-256. `terraform show` displays destroy actions only for resources currently managed by this foundation state.
 
 **Verify**
 
@@ -167,7 +173,7 @@ APPROVE_LAB_DESTROY=1 make destroy-lab
 
 **Expected result**
 
-Before AWS mutation, the script rechecks the exact repository and Terraform roots, fixed project configuration, non-symlink local state, state lineage/serial/resource-set hash, account, profile, `us-east-1`, Git SHA, and plan hash. It invokes `terraform apply -input=false destroy.tfplan`, never an unreviewed `terraform destroy`. Success ends with `destroy verification: PASS` after Terraform state contains no managed resource address, and the consumed plan/metadata are removed.
+Before AWS mutation, the script rechecks the exact repository and Terraform roots, fixed project configuration, non-symlink local state, state lineage/serial/resource-set hash, destroy operation, account/principal, profile, `us-east-1`, Git SHA, and plan hash. It invokes `terraform apply -input=false destroy.tfplan`, never an unreviewed `terraform destroy`. Success ends with `destroy verification: PASS` after Terraform state contains no managed resource address. The consumed plan and metadata are removed after every apply attempt, including a partial failure, so any retry requires a fresh plan review.
 
 **Verify**
 

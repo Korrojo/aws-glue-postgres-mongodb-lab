@@ -134,7 +134,7 @@ PR grouping: one corrective PR; replace `PR PLACEHOLDER` when opened
 
 ### Acceptance
 
-- Destroy planning and execution resolve the exact repository, Terraform root, local state, personal account, profile, `us-east-1`, Git SHA, and unchanged reviewed plan hash.
+- Destroy planning and execution reject ambient credential/Terraform overrides, require the default workspace, match active state lineage/serial to the exact local `terraform.tfstate`, and resolve the exact repository, Terraform root, personal account/principal, profile, `us-east-1`, Git SHA, operation type, and unchanged reviewed plan hash.
 - `make destroy-lab` refuses to act without `APPROVE_LAB_DESTROY=1` and never substitutes an unreviewed `terraform destroy`.
 - Post-destroy verification covers current Terraform-managed foundation resources only; final cross-service inventory remains `GLUE-060` work.
 - Secret rotation against persistent databases removes only Compose project `aws-glue-postgres-mongodb-lab` services and its `postgres_data` and `mongodb_data` volumes before deterministic reseed/tests.
@@ -144,7 +144,7 @@ PR grouping: one corrective PR; replace `PR PLACEHOLDER` when opened
 ## `GLUE-030` — Glue connections, crawler, and Data Catalog
 
 Branch: `agent/hermes-codex/glue-030-040-etl`  
-PR grouping: PR 4 with `GLUE-040`
+PR grouping: PR 5 with `GLUE-040`
 
 ### To-do
 
@@ -170,7 +170,7 @@ PR grouping: PR 4 with `GLUE-040`
 ## `GLUE-040` — PySpark transformation and MongoDB load
 
 Branch: `agent/hermes-codex/glue-030-040-etl`  
-PR grouping: PR 4 with `GLUE-030`
+PR grouping: PR 5 with `GLUE-030`
 
 ### To-do
 
@@ -201,7 +201,7 @@ PR grouping: PR 4 with `GLUE-030`
 ## `GLUE-050` — Reconciliation and rerun validation
 
 Branch: `agent/hermes-codex/glue-050-060-validation`  
-PR grouping: PR 5 with `GLUE-060`
+PR grouping: PR 6 with `GLUE-060`
 
 ### To-do
 
@@ -230,7 +230,7 @@ PR grouping: PR 5 with `GLUE-060`
 ## `GLUE-060` — Runbook, cleanup, and release
 
 Branch: `agent/hermes-codex/glue-050-060-validation`  
-PR grouping: PR 5 with `GLUE-050`
+PR grouping: PR 6 with `GLUE-050`
 
 ### To-do
 

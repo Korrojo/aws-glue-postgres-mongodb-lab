@@ -10,6 +10,37 @@ metadata_file="$tf_root/.destroy.tfplan.identity.json"
 terraform_bin="${TERRAFORM:-terraform}"
 aws_cli="${AWS_CLI:-aws}"
 
+ambient_credential_vars=(
+  AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY
+  AWS_SESSION_TOKEN
+  AWS_SECURITY_TOKEN
+  AWS_WEB_IDENTITY_TOKEN_FILE
+  AWS_ROLE_ARN
+  AWS_ROLE_SESSION_NAME
+  AWS_CONTAINER_CREDENTIALS_RELATIVE_URI
+  AWS_CONTAINER_CREDENTIALS_FULL_URI
+  AWS_CONTAINER_AUTHORIZATION_TOKEN
+  AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
+)
+for variable_name in "${ambient_credential_vars[@]}"; do
+  if [[ -n "${!variable_name:-}" ]]; then
+    printf 'ERROR: unset ambient AWS or Terraform override variables before using the approved AWS_PROFILE.\n' >&2
+    exit 1
+  fi
+done
+while IFS= read -r variable_name; do
+  case "$variable_name" in
+    TF_WORKSPACE|TF_DATA_DIR|TF_CLI_ARGS|TF_CLI_ARGS_*)
+      if [[ -n "${!variable_name:-}" ]]; then
+        printf 'ERROR: unset ambient AWS or Terraform override variables before using the approved AWS_PROFILE.\n' >&2
+        exit 1
+      fi
+      ;;
+  esac
+done < <(compgen -e)
+export AWS_EC2_METADATA_DISABLED=true
+
 : "${AWS_PROFILE:?ERROR: AWS_PROFILE is required.}"
 aws_region="${AWS_REGION:-${AWS_DEFAULT_REGION:-}}"
 if [[ "$aws_region" != "us-east-1" ]]; then
@@ -37,6 +68,11 @@ if [[ -n "$(git -C "$repo_root" status --short)" ]]; then
   printf 'ERROR: commit or revert repository changes before creating a reviewed destroy plan.\n' >&2
   exit 1
 fi
+workspace="$($terraform_bin -chdir="$tf_root" workspace show)"
+if [[ "$workspace" != "default" ]]; then
+  printf 'ERROR: Terraform workspace must be default for the exact local state.\n' >&2
+  exit 1
+fi
 
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
@@ -45,13 +81,15 @@ rm -f "$metadata_file" "$plan_file"
 
 "$terraform_bin" -chdir="$tf_root" state pull > "$work_dir/state.json"
 "$terraform_bin" -chdir="$tf_root" state list | LC_ALL=C sort > "$work_dir/state-resources.txt"
-python3 - "$work_dir/state.json" "$work_dir/state-resources.txt" "$project_name" "$tf_root" <<'PY'
+python3 - "$work_dir/state.json" "$work_dir/state-resources.txt" "$state_file" \
+  "$project_name" "$tf_root" <<'PY'
 import json
 import pathlib
 import sys
 
-state_path, resources_path, project, tf_root = sys.argv[1:]
+state_path, resources_path, local_state_path, project, tf_root = sys.argv[1:]
 state = json.loads(pathlib.Path(state_path).read_text())
+local_state = json.loads(pathlib.Path(local_state_path).read_text())
 resources = [line for line in pathlib.Path(resources_path).read_text().splitlines() if line]
 outputs = state.get("outputs", {})
 terraform_config = pathlib.Path(tf_root, "main.tf").read_text()
@@ -59,6 +97,8 @@ checks = [
     (f'project_name = "{project}"' in terraform_config, "Terraform configuration is not the fixed project"),
     (state.get("lineage"), "Terraform state lineage is missing"),
     (isinstance(state.get("serial"), int), "Terraform state serial is invalid"),
+    (state.get("lineage") == local_state.get("lineage"), "active state lineage does not match terraform.tfstate"),
+    (state.get("serial") == local_state.get("serial"), "active state serial does not match terraform.tfstate"),
     (resources, "Terraform state has no managed foundation resources"),
     (outputs.get("aws_region", {}).get("value") == "us-east-1", "Terraform state Region is not us-east-1"),
     (bool(outputs.get("aws_account_id", {}).get("value")), "Terraform state account output is missing"),
@@ -91,7 +131,7 @@ PY
 "$terraform_bin" -chdir="$tf_root" state list | LC_ALL=C sort > "$work_dir/state-resources.txt"
 
 python3 - "$work_dir/identity.json" "$work_dir/state.json" "$work_dir/state-resources.txt" \
-  "$metadata_file" "$plan_file" "$project_name" "$repo_root" "$tf_root" \
+  "$state_file" "$metadata_file" "$plan_file" "$project_name" "$repo_root" "$tf_root" \
   "$AWS_PROFILE" "$aws_region" "$(git -C "$repo_root" rev-parse HEAD)" <<'PY'
 import hashlib
 import json
@@ -102,6 +142,7 @@ import sys
     identity_path,
     state_path,
     resources_path,
+    local_state_path,
     metadata_path,
     plan_path,
     project,
@@ -113,8 +154,12 @@ import sys
 ) = sys.argv[1:]
 identity = json.loads(pathlib.Path(identity_path).read_text())
 state = json.loads(pathlib.Path(state_path).read_text())
+local_state = json.loads(pathlib.Path(local_state_path).read_text())
+if state.get("lineage") != local_state.get("lineage") or state.get("serial") != local_state.get("serial"):
+    raise SystemExit("ERROR: active state does not match terraform.tfstate after planning.")
 resources = pathlib.Path(resources_path).read_bytes()
 metadata = {
+    "operation": "destroy",
     "account_id": identity["Account"],
     "principal_arn": identity["Arn"],
     "profile": profile,

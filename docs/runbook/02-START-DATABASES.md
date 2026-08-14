@@ -49,7 +49,7 @@ Continue with the manual diagnostic steps below; they expose each prerequisite a
 
 **Next**
 
-After success, retain the recorded Git SHA and continue to runbook 03 only after GLUE-020 is merged.
+After success, retain the recorded Git SHA. Continue to runbook 03 only after `GLUE-025` is reviewed and its personal-account live-validation sequence succeeds.
 
 ## Manual EC2 diagnostic path
 
