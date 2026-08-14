@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    name: Full-history secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan Git history with Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
+  python:
+    name: Python governance checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements/dev.lock
+      - name: Install locked test tools
+        run: python -m pip install --requirement requirements/dev.lock
+      - name: Check formatting
+        run: make format-check
+      - name: Lint
+        run: make lint
+      - name: Run unit tests and explicit-stub tests
+        run: make unit-test
+
+  scaffold:
+    name: Compose and Terraform scaffolding
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - name: Prove the deferred Compose check fails explicitly
+        run: |
+          if make compose-check >compose.out 2>compose.err; then
+            echo "compose-check unexpectedly succeeded" >&2
+            exit 1
+          fi
+          grep -F "ERROR: make compose-check is not implemented; GLUE-010 must add docker/compose.yaml." compose.err
+      - name: Prove the deferred Terraform check fails explicitly
+        run: |
+          if make terraform-check >terraform.out 2>terraform.err; then
+            echo "terraform-check unexpectedly succeeded" >&2
+            exit 1
+          fi
+          grep -F "ERROR: make terraform-check is not implemented; GLUE-020 must add Terraform configuration." terraform.err
