@@ -144,6 +144,10 @@ def test_design_blueprint_directories_exist_without_future_components() -> None:
 def test_roadmap_preserves_only_glue_000_as_active() -> None:
     roadmap = (ROOT / "docs/project/ROADMAP.md").read_text()
 
-    assert "| `GLUE-000` | IN PROGRESS |" in roadmap
+    expected_status = (
+        "| `GLUE-000` | PR OPEN | "
+        "[#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) |"
+    )
+    assert expected_status in roadmap
     for task_number in range(10, 61, 10):
         assert f"| `GLUE-{task_number:03d}` | NOT STARTED |" in roadmap

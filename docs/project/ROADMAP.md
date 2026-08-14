@@ -14,7 +14,7 @@ Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and 
 
 | Task | Status | PR | Depends on | Outcome |
 |---|---|---|---|---|
-| `GLUE-000` | IN PROGRESS | — | — | Governance and repository skeleton |
+| `GLUE-000` | PR OPEN | [#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) | — | Governance and repository skeleton |
 | `GLUE-010` | NOT STARTED | — | `GLUE-000` | Containerized source/target and fixtures |
 | `GLUE-020` | NOT STARTED | — | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
 | `GLUE-030` | NOT STARTED | — | `GLUE-020` | Glue networking, connections, crawler, catalog |
@@ -29,19 +29,19 @@ PR grouping: PR 1 only
 
 ### To-do
 
-- [ ] Create the public repository with MIT license.
-- [ ] Install `AGENTS.md` and all `docs/project/` documents.
-- [ ] Install the PR template.
-- [ ] Add a short root README containing objective, architecture summary, total lab sequence, cost warning, current project status, and links to the detailed runbooks. The README must not duplicate or replace the runbooks.
-- [ ] Install `DOCUMENTATION_STANDARD.md` and every `docs/runbook/` template from the handoff package.
-- [ ] Add `.gitignore` entries for Terraform state/plans, `.terraform/`, `.env*` except `.env.example`, keys, Python caches, test output, IDE files, generated artifacts, and secrets.
-- [ ] Add `.env.example` containing names/placeholders only.
-- [ ] Create the repository directory skeleton from `DESIGN.md`.
-- [ ] Add Makefile targets as documented stubs with help text; unimplemented targets must fail clearly rather than succeed silently.
-- [ ] Add minimal CI scaffolding for secret scanning, Python unit tests, Docker Compose validation, and Terraform formatting/validation. Do not add deployment workflows or an enterprise CI framework.
-- [ ] Add dependency files with pinned or constrained versions appropriate to Glue 5.1.
-- [ ] Confirm no credential, account-specific value, or generated state is tracked.
-- [ ] Update this task to `PR OPEN` and record the PR number.
+- [x] Create the public repository with MIT license.
+- [x] Install `AGENTS.md` and all `docs/project/` documents.
+- [x] Install the PR template.
+- [x] Add a short root README containing objective, architecture summary, total lab sequence, cost warning, current project status, and links to the detailed runbooks. The README must not duplicate or replace the runbooks.
+- [x] Install `DOCUMENTATION_STANDARD.md` and every `docs/runbook/` template from the handoff package.
+- [x] Add `.gitignore` entries for Terraform state/plans, `.terraform/`, `.env*` except `.env.example`, keys, Python caches, test output, IDE files, generated artifacts, and secrets.
+- [x] Add `.env.example` containing names/placeholders only.
+- [x] Create the repository directory skeleton from `DESIGN.md`.
+- [x] Add Makefile targets as documented stubs with help text; unimplemented targets must fail clearly rather than succeed silently.
+- [x] Add minimal CI scaffolding for secret scanning, Python unit tests, Docker Compose validation, and Terraform formatting/validation. Do not add deployment workflows or an enterprise CI framework.
+- [x] Add dependency files with pinned or constrained versions appropriate to Glue 5.1.
+- [x] Confirm no credential, account-specific value, or generated state is tracked.
+- [x] Update this task to `PR OPEN` and record the PR number.
 
 ### Acceptance
 
