@@ -10,7 +10,7 @@
 
 `DONE` means the reviewed implementation and credential-free development checks are complete. Live AWS execution is not a task status or agent acceptance gate; it is user-run only.
 
-Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` are the explicit PR #6 grouping and therefore share one active branch.
+Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`.
 
 ## Credential-free development acceptance
 
@@ -26,8 +26,8 @@ Agents must never request or use AWS credentials or execute any AWS command. Sta
 | `GLUE-025` | DONE | [#4](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/4) | `GLUE-020` | Foundation teardown and persistent-volume rotation correction |
 | `GLUE-030` | DONE | [#5](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/5) | `GLUE-025` | Glue networking, connections, crawler, catalog |
 | `GLUE-040` | DONE | [#5](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/5) | `GLUE-030` | PySpark transformation and MongoDB load |
-| `GLUE-050` | IN PROGRESS | PR #6 PLACEHOLDER | `GLUE-040` | Reconciliation and rerun validation |
-| `GLUE-060` | IN PROGRESS | PR #6 PLACEHOLDER | `GLUE-050` | Runbook, cleanup proof, final release |
+| `GLUE-050` | DONE | [#6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) | `GLUE-040` | Reconciliation and rerun validation |
+| `GLUE-060` | DONE | [#6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) | `GLUE-050` | Runbook, cleanup proof, final release |
 
 ## `GLUE-000` — Governance and repository skeleton
 
@@ -214,28 +214,28 @@ PR grouping: PR 6 with `GLUE-060`
 
 ### To-do
 
-- [ ] Build `validation/reconcile.py` with PostgreSQL and MongoDB readers.
-- [ ] Retrieve credentials from Secrets Manager at runtime without logging them.
-- [ ] Compare active order/document counts.
-- [ ] Compare active item/embedded-array counts.
-- [ ] Compare exact per-order totals.
-- [ ] Compare item order and normalized fixtures.
-- [ ] Verify soft-deleted records are absent.
-- [ ] Produce concise redacted JSON and console summaries.
-- [ ] Exit nonzero on any mismatch.
-- [ ] Run the Glue job twice against the same source.
-- [ ] Prove target count does not increase.
-- [ ] Modify one valid source order in a controlled test, rerun the snapshot, and prove the target document reflects the intended replacement behavior.
-- [ ] Change one previously emitted source order to soft-deleted, rerun, detect that `replaceDocument=true` does not delete the stale target document, and provide an explicit user-run resolution without claiming `GLUE-040` deletion convergence.
-- [ ] Implement `make validate` and `make rerun-test`.
-- [ ] Complete `docs/runbook/05-VALIDATE-AND-RERUN.md` in the same PR.
+- [x] Build `validation/reconcile.py` with PostgreSQL and MongoDB readers.
+- [x] Retrieve credentials from Secrets Manager at runtime without logging them.
+- [x] Compare active order/document counts.
+- [x] Compare active item/embedded-array counts.
+- [x] Compare exact per-order totals.
+- [x] Compare item order and normalized fixtures.
+- [x] Verify soft-deleted records are absent.
+- [x] Produce concise redacted JSON and console summaries.
+- [x] Exit nonzero on any mismatch.
+- [x] Run the Glue job twice against the same source.
+- [x] Prove target count does not increase.
+- [x] Modify one valid source order in a controlled test, rerun the snapshot, and prove the target document reflects the intended replacement behavior.
+- [x] Change one previously emitted source order to soft-deleted, rerun, detect that `replaceDocument=true` does not delete the stale target document, and provide an explicit user-run resolution without claiming `GLUE-040` deletion convergence.
+- [x] Implement `make validate` and `make rerun-test`.
+- [x] Complete `docs/runbook/05-VALIDATE-AND-RERUN.md` in the same PR.
 
 ### Acceptance
 
-- All checks in `ACCEPTANCE_CRITERIA.md` pass.
-- Deliberate mismatch produces a nonzero exit.
-- Second run is proven, not inferred.
-- Connector rerun behavior is documented from observed output.
+- Credential-free reconciliation and rerun command contracts pass.
+- A deliberate mismatch fixture produces a nonzero exit.
+- Expected unchanged rerun, controlled replacement, stale-target detection, and explicit user-run resolution behavior are documented and covered by static, mock, and unit checks.
+- Live Glue and connector execution is **user-run only**; contradictory results follow the documented troubleshooting path and become a separate issue/PR.
 
 ## `GLUE-060` — Runbook, cleanup, and release
 
@@ -244,16 +244,16 @@ PR grouping: PR 6 with `GLUE-050`
 
 ### To-do
 
-- [ ] Review all runbooks against `DOCUMENTATION_STANDARD.md`; do not defer missing component instructions to README prose.
-- [ ] Complete `docs/runbook/06-DESTROY.md` and `docs/runbook/07-TROUBLESHOOTING.md`.
-- [ ] Document GitHub-to-EC2 clone and optional EC2 write workflow as an optional section, not a prerequisite for the core lab.
-- [ ] Add a simple `make cost-check` that inventories the lab's expected resources. Do not build a cost dashboard or depend on delayed Cost Explorer results.
-- [ ] Reuse the approval-gated `make destroy-lab` for the complete Terraform state and add final cross-service cleanup proof without weakening its exact project/plan binding.
-- [ ] Add `scripts/verify-destroyed.sh` for project-tagged resource checks.
-- [ ] Document manually removed resources, if any.
-- [ ] Run all credential-free command contracts from a clean checkout and record observed local/static/mock results.
-- [ ] Keep optional user-run release evidence separate from development acceptance.
-- [ ] Update README status and all roadmap tasks.
+- [x] Review all runbooks against `DOCUMENTATION_STANDARD.md`; do not defer missing component instructions to README prose.
+- [x] Complete `docs/runbook/06-DESTROY.md` and `docs/runbook/07-TROUBLESHOOTING.md`.
+- [x] Document GitHub-to-EC2 clone and optional EC2 write workflow as an optional section, not a prerequisite for the core lab.
+- [x] Add a simple `make cost-check` that inventories the lab's expected resources. Do not build a cost dashboard or depend on delayed Cost Explorer results.
+- [x] Reuse the approval-gated `make destroy-lab` for the complete Terraform state and add final cross-service cleanup proof without weakening its exact project/plan binding.
+- [x] Add `scripts/verify-destroyed.sh` for project-tagged resource checks.
+- [x] Document manually removed resources, if any.
+- [x] Run all credential-free command contracts from a clean checkout and record observed local/static/mock results.
+- [x] Keep optional user-run release evidence separate from development acceptance.
+- [x] Update README status and all roadmap tasks.
 
 ### Acceptance
 

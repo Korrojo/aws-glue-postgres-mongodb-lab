@@ -402,8 +402,10 @@ def test_release_runbooks_and_status_have_no_owned_deferred_markers() -> None:
     road = (ROOT / "docs/project/ROADMAP.md").read_text()
     readme = (ROOT / "README.md").read_text()
     for task in ("GLUE-050", "GLUE-060"):
-        assert f"| `{task}` | IN PROGRESS | PR #6 PLACEHOLDER |" in road
-    assert "PR #6 PLACEHOLDER" in readme
+        assert f"| `{task}` | DONE | [#6]" in road
+    assert "PR #6 PLACEHOLDER" not in road
+    assert "PR #6 PLACEHOLDER" not in readme
+    assert "[PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6)" in readme
     for name in (
         "05-VALIDATE-AND-RERUN.md",
         "06-DESTROY.md",

@@ -376,7 +376,8 @@ def test_foundation_status_and_user_run_only_governance_contract() -> None:
     for task in ("GLUE-030", "GLUE-040"):
         assert f"| `{task}` | DONE | [#5]" in roadmap
     for task in ("GLUE-050", "GLUE-060"):
-        assert f"| `{task}` | IN PROGRESS | PR #6 PLACEHOLDER |" in roadmap
+        assert f"| `{task}` | DONE | [#6]" in roadmap
+    assert "PR #6 PLACEHOLDER" not in roadmap
 
     combined_foundation_docs = deploy_runbook + database_runbook + destroy_runbook
     assert "User-run only" in combined_foundation_docs
