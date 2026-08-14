@@ -164,5 +164,9 @@ def test_roadmap_records_glue_000_merged_and_only_glue_010_pr_open() -> None:
         "[#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` |"
     )
     assert glue_010_status in roadmap
+    glue_010_section = roadmap.split("## `GLUE-010`", maxsplit=1)[1].split(
+        "## `GLUE-020`", maxsplit=1
+    )[0]
+    assert "- [ ]" not in glue_010_section
     for task_number in range(20, 61, 10):
         assert f"| `GLUE-{task_number:03d}` | NOT STARTED |" in roadmap

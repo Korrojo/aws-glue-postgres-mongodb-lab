@@ -59,19 +59,19 @@ PR grouping: PR 2 only
 
 ### To-do
 
-- [ ] Add pinned PostgreSQL and MongoDB Community container images compatible with the lab architecture and Mac/EC2 platforms.
-- [ ] Add health checks and named volumes.
-- [ ] Bind database ports in a way compatible with EC2 private-IP access while relying on security groups for AWS isolation.
-- [ ] Create `sales.orders` and `sales.order_items` with constraints.
-- [ ] Add deterministic valid seed data.
-- [ ] Add isolated invalid fixtures for failure-path tests.
-- [ ] Initialize the MongoDB `migration_lab` database and least-privilege Glue writer user.
-- [ ] Add local container smoke tests.
-- [ ] Add source SQL assertions for counts, keys, foreign keys, decimals, and soft deletes.
-- [ ] Document Apple Silicon compatibility without introducing an alternate architecture.
-- [ ] Complete `docs/runbook/02-START-DATABASES.md` in the same PR, including prerequisites, exact commands, expected output, verification, reset, and focused troubleshooting.
-- [ ] Implement `make local-up`, `make local-status`, `make local-test`, and `make local-down`.
-- [ ] Ensure no secret values are embedded in Compose or initialization files.
+- [x] Add pinned PostgreSQL and MongoDB Community container images compatible with the lab architecture and Mac/EC2 platforms.
+- [x] Add health checks and named volumes.
+- [x] Bind database ports in a way compatible with EC2 private-IP access while relying on security groups for AWS isolation.
+- [x] Create `sales.orders` and `sales.order_items` with constraints.
+- [x] Add deterministic valid seed data.
+- [x] Add isolated invalid fixtures for failure-path tests.
+- [x] Initialize the MongoDB `migration_lab` database and least-privilege Glue writer user.
+- [x] Add local container smoke tests.
+- [x] Add source SQL assertions for counts, keys, foreign keys, decimals, and soft deletes.
+- [x] Document Apple Silicon compatibility without introducing an alternate architecture.
+- [x] Complete `docs/runbook/02-START-DATABASES.md` in the same PR, including prerequisites, exact commands, expected output, verification, reset, and focused troubleshooting.
+- [x] Implement `make local-up`, `make local-status`, `make local-test`, and `make local-down`.
+- [x] Ensure no secret values are embedded in Compose or initialization files.
 
 ### Acceptance
 
