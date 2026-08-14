@@ -31,6 +31,10 @@ for variable_name in "${ambient_credential_vars[@]}"; do
 done
 while IFS= read -r variable_name; do
   case "$variable_name" in
+    AWS_ENDPOINT_URL|AWS_ENDPOINT_URL_*)
+      printf '%s\n' 'ERROR: unset every AWS endpoint override before using the approved AWS_PROFILE.' >&2
+      exit 1
+      ;;
     TF_WORKSPACE|TF_DATA_DIR|TF_CLI_ARGS|TF_CLI_ARGS_*)
       if [[ -n "${!variable_name:-}" ]]; then
         printf 'ERROR: unset ambient AWS or Terraform override variables before using the approved AWS_PROFILE.\n' >&2
@@ -39,6 +43,7 @@ while IFS= read -r variable_name; do
       ;;
   esac
 done < <(compgen -e)
+export AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true
 export AWS_EC2_METADATA_DISABLED=true
 
 : "${AWS_PROFILE:?ERROR: AWS_PROFILE is required.}"

@@ -1,20 +1,20 @@
 # 06 — Destroy the Lab
 
-Owner: `GLUE-025` for the current Terraform-managed foundation; final cross-service cleanup remains `GLUE-060`
-Status: foundation destroy implemented by `GLUE-025`
+Owner: `GLUE-025` reviewed-plan safety plus `GLUE-060` final inventory/cleanup proof
+Status: implementation complete
 
-> **User-run only:** Agents must never request or use AWS credentials or execute this destroy flow. No agent-run live AWS evidence is required; development uses static/mock/Terraform/unit/container checks. A later user-run failure belongs in a separate issue/PR.
+> **User-run only:** Agents never request or use AWS credentials and never execute this flow. The user runs it only from the completed reviewed clone. Credential-free fake-boundary tests establish development acceptance; live output is optional user evidence and must be redacted.
 
-Stopping EC2 is not cleanup. The VPC endpoints, S3 bucket, secrets, IAM resources, networking, and EC2 instance remain until Terraform removes them. This corrective runbook destroys and verifies only the resources currently managed by the exact local foundation state. `GLUE-060` final cost inventory, later Glue resource verification, optional GitHub deploy-key retirement, and complete cross-service project-tag scan are explicitly deferred.
+Stopping EC2 is not cleanup. Interface endpoints, S3, Secrets Manager, Glue, IAM, networking, and storage remain until the exact reviewed Terraform destroy plan removes them.
 
 > [!CAUTION]
-> These steps are destructive and have no database-volume recovery path. Use only the intended personal AWS account in `us-east-1`. Keep evidence local until redacted. Never publish AWS account IDs, principal ARNs, instance IDs, public IP addresses, secret values, credentialed connection strings, live endpoints, Terraform state, saved plans, or plan metadata. Do not fabricate evidence: report only commands actually run and outputs actually observed, with every failure, skip, and limitation stated.
+> Destruction has no database-volume recovery path. Use only the intended personal account in `us-east-1`. Never publish account IDs, principal ARNs, instance IDs, bucket names, public IPs, secret values, credentialed URIs, Terraform state, plans, or private plan metadata.
 
-## Step 1 — Confirm the exact project and local state
+## Step 1 — Confirm exact state, identity, and checkout
 
 **Purpose**
 
-Fail before plan creation if the operator, repository, Terraform root, Region, or local state is not the fixed foundation lab target.
+Fail before inventory or planning if the repository, Terraform root/state/workspace, profile, account, Region, or endpoint configuration is not the fixed lab target.
 
 **Run from**
 
@@ -22,20 +22,18 @@ Fail before plan creation if the operator, repository, Terraform root, Region, o
 
 **Prerequisites**
 
-- The lab was applied from this checkout and its local `infrastructure/terraform/terraform.tfstate` remains available.
-- The repository working tree is clean.
-- The selected profile is the intended personal account.
-- The personal-account live-validation sequence has already completed `make doctor`, `make infra-plan`, review the saved infrastructure plan, approved `APPROVE_LAB_APPLY=1 make infra-apply`, `APPROVE_LAB_SECRETS=1 make secrets-put`, and `make ec2-bootstrap` in that order.
+- Runbooks 00–05 completed or the user intentionally chose early cleanup.
+- `infrastructure/terraform/terraform.tfstate` is the original non-symlink local state used to apply this lab.
+- The tree is clean and the selected profile is the intended personal account.
 
 **Inputs**
-
-Unset ambient credential sources so both AWS CLI and Terraform must use the approved profile. Then set the personal profile and fixed Region; replace `personal-glue-lab` only with the local profile name for the intended personal account:
 
 ```bash
 unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
 unset AWS_WEB_IDENTITY_TOKEN_FILE AWS_ROLE_ARN AWS_ROLE_SESSION_NAME
 unset AWS_CONTAINER_CREDENTIALS_RELATIVE_URI AWS_CONTAINER_CREDENTIALS_FULL_URI
 unset AWS_CONTAINER_AUTHORIZATION_TOKEN AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
+unset AWS_ENDPOINT_URL
 unset TF_WORKSPACE TF_DATA_DIR TF_CLI_ARGS
 unset TF_CLI_ARGS_plan TF_CLI_ARGS_apply TF_CLI_ARGS_destroy TF_CLI_ARGS_state
 export AWS_PROFILE="personal-glue-lab"
@@ -43,7 +41,9 @@ export AWS_REGION="us-east-1"
 export AWS_DEFAULT_REGION="us-east-1"
 ```
 
-**Command**
+Unset every `AWS_ENDPOINT_URL_*` variable too; scripts reject even an empty override.
+
+**Command — User-run only**
 
 ```bash
 test "$(pwd -P)" = "$(git rev-parse --show-toplevel)"
@@ -51,44 +51,41 @@ test "$(basename "$(pwd -P)")" = aws-glue-postgres-mongodb-lab
 test -f infrastructure/terraform/terraform.tfstate
 test ! -L infrastructure/terraform/terraform.tfstate
 test -z "$(git status --short)"
+test "$(terraform -chdir=infrastructure/terraform workspace show)" = default
 make doctor
 ```
 
 **Expected result**
 
-Every `test` exits `0`, and `make doctor` ends with `doctor: PASS` for the intended personal identity and `us-east-1`. The guarded destroy scripts additionally reject any remaining `TF_CLI_ARGS_*` variable, require Terraform workspace `default`, and compare the active state lineage/serial with the exact local `terraform.tfstate`. No state or identity value is copied into tracked files.
+Every test exits `0`; `make doctor` ends in `doctor: PASS` for the intended personal identity and `us-east-1`. No identity value is copied to tracked files.
 
-**Verify**
+**Verify — User-run only**
 
 ```bash
 test "$(terraform -chdir=infrastructure/terraform output -raw aws_region)" = us-east-1
-test "$(terraform -chdir=infrastructure/terraform output -raw postgres_secret_name)" = /aws-glue-postgres-mongodb-lab/postgres
-test "$(terraform -chdir=infrastructure/terraform output -raw mongodb_secret_name)" = /aws-glue-postgres-mongodb-lab/mongodb
-test "$(terraform -chdir=infrastructure/terraform output -raw mongodb_glue_secret_name)" = /aws-glue-postgres-mongodb-lab/mongodb-glue
-terraform -chdir=infrastructure/terraform state list
+terraform -chdir=infrastructure/terraform state list >/dev/null
+printf '%s\n' 'destroy prerequisites: PASS'
 ```
 
-Pass: the four `test` commands exit `0`, and the state list contains the expected current resources, including `aws_vpc.lab`, `aws_instance.database_host`, and all three secret containers. Do not publish the full list when it contains live identifiers in indexed instances.
+Pass: `destroy prerequisites: PASS` prints. Do not publish the state list.
 
 **Repeat, reset, or rollback**
 
-The checks are read-only and safe to repeat. A missing or wrong state is a hard stop; do not import, remove, or reconstruct state merely to bypass the identity gate.
+Read-only and safe to repeat. Missing/wrong state, a non-default workspace, or wrong account is a hard stop; do not import, remove, or reconstruct state to bypass the binding.
 
 **If it fails**
 
-- Wrong directory or dirty tree: return to the exact checkout and commit or deliberately revert the intended source changes before planning.
-- Wrong profile/Region: run `aws configure list --profile "$AWS_PROFILE"`, correct the personal session, then repeat this step.
-- Missing state: locate the original ignored local state backup. Do not use broad AWS deletion commands.
+Use `git status --short`, `terraform -chdir=infrastructure/terraform workspace show`, and `aws configure list --profile "$AWS_PROFILE"`. Return to the original checkout/profile/state. Never delete by tag pattern, VPC scope, wildcard, or account scope.
 
 **Next**
 
-Create the review-bound destroy plan.
+Inventory expected lab resources before destruction.
 
-## Step 2 — Create and review the saved destroy plan
+## Step 2 — Record the expected-resource cost inventory
 
 **Purpose**
 
-Produce one reviewable plan bound to this exact project, Terraform state identity, personal account, profile, Region, Git SHA, and plan hash before any destructive mutation.
+List counts for only the resources this lab expects, without Cost Explorer, a dashboard, prices, identifiers, or broad mutation.
 
 **Run from**
 
@@ -96,13 +93,69 @@ Produce one reviewable plan bound to this exact project, Terraform state identit
 
 **Prerequisites**
 
-Step 1 passed, the local state contains current foundation resources, and no unrelated plan is under review.
+Step 1 passes and the lab state still contains its managed resources.
 
 **Inputs**
 
-The exported `AWS_PROFILE` and `AWS_REGION=us-east-1`. No approval variable is set during planning.
+`APPROVE_LAB_COST_CHECK=1` explicitly approves read-only AWS inventory. The same profile and Region remain selected.
 
-**Command**
+**Command — User-run only**
+
+```bash
+APPROVE_LAB_COST_CHECK=1 AWS_PROFILE="$AWS_PROFILE" AWS_REGION="$AWS_REGION" make cost-check
+```
+
+**Expected result**
+
+The command prints redacted JSON counts for Terraform addresses, exact project tags, one EC2 instance, two VPC endpoints, one Glue job, one crawler, two connections, one catalog database, three secrets, two roles, and one artifact bucket. It ends `cost-check: PASS`. It never calls Cost Explorer.
+
+**Verify — User-run only**
+
+```bash
+APPROVE_LAB_COST_CHECK=1 AWS_PROFILE="$AWS_PROFILE" AWS_REGION="$AWS_REGION" make cost-check \
+  | python3 -c 'import json,sys; line=next(x for x in sys.stdin if x.startswith("{")); assert json.loads(line)["passed"]'
+```
+
+Pass: the pipeline exits `0`. Keep output local or publish only the category/count JSON.
+
+**Repeat, reset, or rollback**
+
+Read-only and safe to repeat before destroy. An incomplete expected inventory is a hard stop for diagnosis; it is not permission to discover and remove unrelated resources.
+
+**If it fails**
+
+Confirm the exact Terraform state/profile/Region, then repeat. `AccessDenied` means the personal lab principal lacks a required read action; correct that permission narrowly. Do not add Cost Explorer or account-wide cleanup rights.
+
+**Next**
+
+Create and review the bound destroy plan.
+
+## Step 3 — Create and review the saved destroy plan
+
+**Purpose**
+
+Create one plan bound to the exact project/root/state lineage and serial/resource set/account/principal/profile/Region/Git SHA and plan hash.
+
+**Run from**
+
+`Mac Mini terminal — repository root`
+
+**Prerequisites**
+
+Steps 1–2 pass; no unrelated plan is under review.
+
+**Inputs**
+
+The exported personal profile and fixed Region. No approval variable is set during planning.
+
+Capture two values in shell memory so a read-only verification retry remains possible after Terraform outputs disappear. Do not print them:
+
+```bash
+export EXPECTED_AWS_ACCOUNT="$(terraform -chdir=infrastructure/terraform output -raw aws_account_id)"
+export EXPECTED_ARTIFACT_BUCKET="$(terraform -chdir=infrastructure/terraform output -raw artifact_bucket_name)"
+```
+
+**Command — User-run only**
 
 ```bash
 make destroy-plan
@@ -111,48 +164,44 @@ terraform -chdir=infrastructure/terraform show destroy.tfplan
 
 **Expected result**
 
-`make destroy-plan` first verifies Terraform workspace `default` and proves the active state lineage/serial match the exact local `terraform.tfstate`. It then reports project/state and AWS/state identity passes and saves ignored `destroy.tfplan` plus mode-`0600` `.destroy.tfplan.identity.json`. The metadata identifies the operation as `destroy` and binds the exact roots, state lineage and serial, state resource-set hash, account/principal, profile, Region, Git SHA, and destroy-plan SHA-256. `terraform show` displays destroy actions only for resources currently managed by this foundation state.
+`make destroy-plan` verifies exact state and identity, then writes ignored `destroy.tfplan` and mode-`0600` `.destroy.tfplan.identity.json`. `terraform show` contains only destroy actions for known lab state addresses.
 
 **Verify**
 
-Review the saved destroy plan before approval:
-
 ```text
-[ ] The header identifies a destroy plan for the current local state.
-[ ] Every planned action removes a known aws-glue-postgres-mongodb-lab foundation resource.
-[ ] No create, update, import, forget, or unrelated resource action appears.
-[ ] No secret value, credentialed URI, public IP, account ID, or principal ARN will be copied into public evidence.
-[ ] The plan summary's destroy count matches the set reviewed on screen.
+[ ] Operation is destroy and the plan contains no create/update/import/forget action.
+[ ] Every address belongs to this lab's reviewed Terraform state.
+[ ] No unrelated target appears.
+[ ] No secret/state/plan/live identifier will be copied to public evidence.
+[ ] The displayed destroy count matches the reviewed address set.
 ```
 
-Pass: every checkbox is satisfied. Stop on any unfamiliar target; there is no approval-by-default.
+Pass: every checkbox is satisfied. Stop on any unfamiliar address.
 
 **Repeat, reset, or rollback**
 
-Re-running `make destroy-plan` replaces the plan and private metadata together. To abandon it without touching AWS:
+Re-running `make destroy-plan` replaces plan and identity metadata together. To abandon without mutation:
 
 ```bash
 rm -f infrastructure/terraform/destroy.tfplan \
   infrastructure/terraform/.destroy.tfplan.identity.json
 ```
 
-Any Git, state, resource-set, profile, Region, account, or plan-byte change invalidates review and requires a new plan.
+Any Git/state/resource/profile/Region/account/plan-byte change requires a fresh plan and review.
 
 **If it fails**
 
-- `ERROR: ... does not match Terraform state`: stop and select the original personal profile/Region or state.
-- State drift: inspect a normal `terraform -chdir=infrastructure/terraform plan`; correct only the known foundation issue, then recreate and rereview the destroy plan.
-- Unfamiliar resource: do not approve. Record the address without live values and resolve ownership first.
+On identity/state mismatch, select the original values. On drift, inspect a normal Terraform plan and correct only the known state issue. Never approve an unfamiliar target.
 
 **Next**
 
-Consume only the reviewed saved plan through the explicit approval gate.
+Consume only the reviewed plan.
 
-## Step 3 — Apply only the reviewed destroy plan
+## Step 4 — Apply the reviewed plan and run final known-service checks
 
 **Purpose**
 
-Destroy exactly the reviewed Terraform-managed foundation resources, with no broad service sweep or newly generated plan.
+Destroy exactly the reviewed state and then fail nonzero if a known project-tagged or exact-named resource remains.
 
 **Run from**
 
@@ -160,53 +209,58 @@ Destroy exactly the reviewed Terraform-managed foundation resources, with no bro
 
 **Prerequisites**
 
-- Every Step 2 review checkbox is satisfied.
-- The same clean Git SHA, local state, personal account, profile, and Region remain selected.
-- `destroy.tfplan` and `.destroy.tfplan.identity.json` are unchanged.
+Every Step 3 checkbox passes; plan/metadata/Git/state/profile/account/Region are unchanged; `EXPECTED_AWS_ACCOUNT` and `EXPECTED_ARTIFACT_BUCKET` remain only in shell memory.
 
 **Inputs**
 
-The explicit one-command approval variable `APPROVE_LAB_DESTROY=1`.
+`APPROVE_LAB_DESTROY=1` is the one-command destructive approval.
 
-**Command**
+**Command — User-run only**
 
 ```bash
-APPROVE_LAB_DESTROY=1 make destroy-lab
+APPROVE_LAB_DESTROY=1 AWS_PROFILE="$AWS_PROFILE" AWS_REGION="$AWS_REGION" make destroy-lab
 ```
 
 **Expected result**
 
-Before AWS mutation, the script rechecks the exact repository and Terraform roots, fixed project configuration, non-symlink local state, state lineage/serial/resource-set hash, destroy operation, account/principal, profile, `us-east-1`, Git SHA, and plan hash. It invokes `terraform apply -input=false destroy.tfplan`, never an unreviewed `terraform destroy`. Success ends with `destroy verification: PASS` after Terraform state contains no managed resource address. The consumed plan and metadata are removed after every apply attempt, including a partial failure, so any retry requires a fresh plan review.
+Before mutation, the script revalidates every reviewed binding and plan hash. It executes only `terraform apply -input=false destroy.tfplan`, never a newly generated plan or `terraform destroy`. After state is empty, `scripts/verify-destroyed.sh` performs read-only exact-tag/name checks for EC2 instances, VPC endpoints, the artifact bucket, Glue job/crawler/connections/database, three secrets, two roles, and the Resource Groups Tagging API. Success prints all-zero category counts, `post-destroy known-service verification: PASS`, and `destroy verification: PASS`.
 
-**Verify**
+The reviewed plan and private metadata are consumed after every apply attempt, including partial failure. A retry always needs a new plan review.
+
+**Verify — User-run only**
 
 ```bash
 test -z "$(terraform -chdir=infrastructure/terraform state list)"
 test ! -e infrastructure/terraform/destroy.tfplan
 test ! -e infrastructure/terraform/.destroy.tfplan.identity.json
+APPROVE_LAB_DESTROY_VERIFY=1 \
+EXPECTED_AWS_ACCOUNT="$EXPECTED_AWS_ACCOUNT" \
+EXPECTED_ARTIFACT_BUCKET="$EXPECTED_ARTIFACT_BUCKET" \
+AWS_PROFILE="$AWS_PROFILE" AWS_REGION="$AWS_REGION" ./scripts/verify-destroyed.sh
 ```
 
-Pass: all three commands exit `0`. This is the required step to confirm Terraform-managed resource removal for the current foundation.
+Pass: every command exits `0` and final counts remain zero. The standalone verifier is read-only and exact-scoped; it never deletes a resource.
 
 **Repeat, reset, or rollback**
 
-A successful run cannot be repeated with the consumed plan. Rebuilding requires a new reviewed infrastructure plan and apply. Terraform may leave an empty local state file and `.terraform/` provider cache; both remain ignored. There is no rollback for destroyed disposable databases.
+A successful destroy cannot be repeated with the consumed plan. If Terraform partially fails and state retains addresses, create/review a new smaller destroy plan. If state is empty but final inventory is temporarily nonzero, wait briefly and repeat only the standalone read-only verifier with the two shell-memory bindings. There is no database rollback.
 
 **If it fails**
 
-- Identity/hash failure before apply: make no manual deletion. Re-run Step 1, create a fresh destroy plan, review it, then retry this step.
-- Partial Terraform failure: run `terraform -chdir=infrastructure/terraform state list`, inspect only the reported remaining address and Terraform error, then run `make destroy-plan` again against that exact residual state. Review the smaller saved plan before another approved `make destroy-lab`.
-- Never delete by tag pattern, wildcard, VPC scope, or account scope to force success.
+- Before apply: correct the exact binding and create/review a fresh plan.
+- Partial apply with residual state: inspect only `terraform state list` and the Terraform error, then replan/review.
+- Empty state but known remainder: use the exact read-only command in [07 — Troubleshooting](07-TROUBLESHOOTING.md). Do not perform wildcard/tag/VPC/account cleanup. A genuine out-of-state remainder requires a separately reviewed exact resolution.
+- Access denied during final checks: fix only the named read permission, then repeat the standalone verifier.
 
 **Next**
 
-Verify local sensitive artifacts are absent and record the intentionally deferred final checks.
+Remove local sensitive artifacts and, only if used, retire the optional GitHub deploy key.
 
-## Step 4 — Verify local cleanup and record deferred final scope
+## Step 5 — Remove local artifacts and optional external access
 
 **Purpose**
 
-Confirm that generated sensitive files are absent and distinguish this foundation proof from the final `GLUE-060` cross-service cleanup evidence.
+Confirm generated local material is absent and remove the one manually managed GitHub deploy key only when the optional EC2 write path was used.
 
 **Run from**
 
@@ -214,24 +268,40 @@ Confirm that generated sensitive files are absent and distinguish this foundatio
 
 **Prerequisites**
 
-Step 3 passed or a partial failure has been recorded honestly.
+Step 4 passes or its failure is recorded honestly. `gh auth status` succeeds only if the optional deploy key existed.
 
 **Inputs**
 
-No additional input.
+For the optional key only, set the public repository and numeric deploy-key ID shown under GitHub repository **Settings > Deploy keys**:
+
+```bash
+export GITHUB_REPOSITORY="Korrojo/aws-glue-postgres-mongodb-lab"
+export DEPLOY_KEY_ID="the-numeric-id-from-repository-settings"
+```
+
+Do not set these variables if the optional write workflow was never used.
 
 **Command**
+
+Core local cleanup verification:
 
 ```bash
 test ! -e .env
 test ! -e infrastructure/terraform/destroy.tfplan
 test ! -e infrastructure/terraform/.destroy.tfplan.identity.json
 git status --short
+unset EXPECTED_AWS_ACCOUNT EXPECTED_ARTIFACT_BUCKET
+```
+
+Optional GitHub cleanup — User-run only, run only if that deploy key existed:
+
+```bash
+gh api --method DELETE "repos/$GITHUB_REPOSITORY/keys/$DEPLOY_KEY_ID"
 ```
 
 **Expected result**
 
-The temporary environment, reviewed destroy plan, and private metadata are absent. Git does not list Terraform state, plan, metadata, `.terraform/`, `.lab-commit-sha`, credentials, or secret material. An empty ignored local Terraform state file and ignored provider cache may remain.
+Core tests exit `0`; Git lists no generated secret/state/plan artifact. Optional GitHub deletion exits `0`. The EC2 private key already disappeared with the instance and was never returned or committed; the GitHub deploy-key registration is the only manually removed external resource.
 
 **Verify**
 
@@ -241,16 +311,23 @@ git check-ignore infrastructure/terraform/terraform.tfstate \
   infrastructure/terraform/.destroy.tfplan.identity.json
 ```
 
-Pass: Git reports all three paths as ignored. No generated sensitive artifact is staged or tracked.
+Optional GitHub verification — User-run only:
+
+```bash
+test "$(gh api "repos/$GITHUB_REPOSITORY/keys" --jq \
+  "[.[] | select(.id == ($DEPLOY_KEY_ID | tonumber))] | length")" = 0
+```
+
+Pass: ignored local paths are reported and, if applicable, the selected key count is zero.
 
 **Repeat, reset, or rollback**
 
-Safe to repeat. Remove only known local generated plan/metadata or `.env` files; do not delete source, the local state needed to recover a partial destroy, or unrelated credentials.
+Local checks are safe to repeat. GitHub deletion is not repeatable after the key is gone; create a new key through the optional workflow only for a future lab. Do not remove unrelated repository keys.
 
 **If it fails**
 
-Use `git status --short --ignored` to identify the exact local artifact. Remove only a known generated secret/plan artifact. Never print its contents while diagnosing.
+Use `git status --short --ignored` to identify only known generated artifacts. For GitHub `404`, confirm repository/key ID and whether the key is already absent. Never print private key material.
 
 **Next**
 
-`GLUE-060` remains responsible for final cost inventory, later Glue job/crawler/connection checks, optional GitHub deploy-key removal, broad known-service project-tag verification, the full clean-checkout run, and redacted release evidence. Those cross-service steps are deferred and must not be claimed from this foundation-only run.
+The lab is complete. Keep any user-run evidence separate, counts-only/redacted, and clearly labeled as user supplied.

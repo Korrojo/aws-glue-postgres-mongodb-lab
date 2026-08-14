@@ -31,6 +31,10 @@ for variable_name in "${ambient_credential_vars[@]}"; do
 done
 while IFS= read -r variable_name; do
   case "$variable_name" in
+    AWS_ENDPOINT_URL|AWS_ENDPOINT_URL_*)
+      printf '%s\n' 'ERROR: unset every AWS endpoint override before using the approved AWS_PROFILE.' >&2
+      exit 1
+      ;;
     TF_WORKSPACE|TF_DATA_DIR|TF_CLI_ARGS|TF_CLI_ARGS_*)
       if [[ -n "${!variable_name:-}" ]]; then
         printf 'ERROR: unset ambient AWS or Terraform override variables before using the approved AWS_PROFILE.\n' >&2
@@ -39,6 +43,7 @@ while IFS= read -r variable_name; do
       ;;
   esac
 done < <(compgen -e)
+export AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true
 export AWS_EC2_METADATA_DISABLED=true
 
 if [[ "${APPROVE_LAB_DESTROY:-0}" != "1" ]]; then
@@ -150,6 +155,19 @@ for passed, message in checks:
 print("reviewed destroy plan identity: PASS")
 PY
 
+expected_account="$(python3 - "$metadata_file" <<'PY'
+import json
+import pathlib
+import sys
+print(json.loads(pathlib.Path(sys.argv[1]).read_text())["account_id"])
+PY
+)"
+expected_artifact_bucket="$($terraform_bin -chdir="$tf_root" output -raw artifact_bucket_name)"
+[[ -n "$expected_account" && -n "$expected_artifact_bucket" ]] || {
+  printf '%s\n' 'ERROR: destroy-bound post-destroy identity is incomplete.' >&2
+  exit 1
+}
+
 apply_attempted="1"
 "$terraform_bin" -chdir="$tf_root" apply -input=false destroy.tfplan
 remaining="$($terraform_bin -chdir="$tf_root" state list)"
@@ -157,5 +175,11 @@ if [[ -n "$remaining" ]]; then
   printf 'ERROR: Terraform state still contains managed resources after destroy.\n' >&2
   exit 1
 fi
+APPROVE_LAB_DESTROY_VERIFY=1 \
+  EXPECTED_AWS_ACCOUNT="$expected_account" \
+  EXPECTED_ARTIFACT_BUCKET="$expected_artifact_bucket" \
+  AWS_CLI="$aws_cli" TERRAFORM="$terraform_bin" \
+  "$repo_root/scripts/verify-destroyed.sh"
+unset expected_account expected_artifact_bucket
 printf '%s Terraform-managed foundation destroy verification: PASS\n' "$project_name"
 printf 'destroy verification: PASS\n'
