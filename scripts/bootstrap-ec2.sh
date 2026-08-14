@@ -5,6 +5,12 @@ project_name="aws-glue-postgres-mongodb-lab"
 repo_root="/opt/$project_name"
 aws_cli="${AWS_CLI:-aws}"
 aws_region="${AWS_REGION:-us-east-1}"
+reset_data="${RESET_DATA:-0}"
+
+if [[ "$reset_data" != "0" && "$reset_data" != "1" ]]; then
+  printf 'ERROR: RESET_DATA must be 0 or 1.\n' >&2
+  exit 1
+fi
 
 if [[ "$(id -un)" != "ec2-user" ]]; then
   printf 'ERROR: run this script as ec2-user through SSM.\n' >&2
@@ -54,6 +60,30 @@ path = pathlib.Path(sys.argv[3])
 path.write_text("".join(f"{key}={value}\n" for key, value in values.items()))
 path.chmod(0o600)
 PY
+
+if [[ "$reset_data" == "1" ]]; then
+  compose_contract="$tmp_dir/compose-contract.json"
+  docker compose --env-file "$env_file" -f docker/compose.yaml config --format json \
+    > "$compose_contract"
+  python3 - "$compose_contract" <<'PY'
+import json
+import pathlib
+import sys
+
+compose = json.loads(pathlib.Path(sys.argv[1]).read_text())
+expected_project = "aws-glue-postgres-mongodb-lab"
+expected_services = {"postgres", "mongodb"}
+expected_volumes = {"postgres_data", "mongodb_data"}
+if compose.get("name") != expected_project:
+    raise SystemExit("ERROR: Compose project identity does not match the fixed lab project.")
+if set(compose.get("services", {})) != expected_services:
+    raise SystemExit("ERROR: Compose services do not match the two fixed lab databases.")
+if set(compose.get("volumes", {})) != expected_volumes:
+    raise SystemExit("ERROR: Compose volumes do not match the two fixed lab volumes.")
+print("fixed Compose reset scope: PASS")
+PY
+  make local-down RESET_VOLUMES=1
+fi
 
 make local-up
 make local-test

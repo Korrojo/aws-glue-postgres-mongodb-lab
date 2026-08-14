@@ -7,6 +7,7 @@
 - `BLOCKED`
 - `PR OPEN`
 - `DONE`
+- `MERGED — PENDING LIVE VALIDATION`
 
 Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap.
 
@@ -16,8 +17,9 @@ Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and 
 |---|---|---|---|---|
 | `GLUE-000` | DONE | [#1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) | — | Governance and repository skeleton |
 | `GLUE-010` | DONE | [#2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2) | `GLUE-000` | Containerized source/target and fixtures |
-| `GLUE-020` | PR OPEN | [#3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
-| `GLUE-030` | NOT STARTED | — | `GLUE-020` | Glue networking, connections, crawler, catalog |
+| `GLUE-020` | MERGED — PENDING LIVE VALIDATION | [#3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) | `GLUE-010` | Disposable AWS foundation and EC2 workflow |
+| `GLUE-025` | IN PROGRESS | PR PLACEHOLDER | `GLUE-020` | Foundation teardown and persistent-volume rotation correction |
+| `GLUE-030` | NOT STARTED | — | `GLUE-025` | Glue networking, connections, crawler, catalog |
 | `GLUE-040` | NOT STARTED | — | `GLUE-030` | PySpark transformation and MongoDB load |
 | `GLUE-050` | NOT STARTED | — | `GLUE-040` | Reconciliation and rerun validation |
 | `GLUE-060` | NOT STARTED | — | `GLUE-050` | Runbook, cleanup proof, final release |
@@ -114,6 +116,30 @@ PR grouping: PR 3 only
 - EC2 clones the public repository and the run records the checked-out commit SHA.
 - PostgreSQL and MongoDB are reachable from the Glue security group path, not from public inbound access.
 - A destroy plan is reviewable.
+
+## `GLUE-025` — Foundation teardown and persistent-volume rotation correction
+
+Branch: `agent/hermes-codex/glue-025-foundation-cleanup`
+PR grouping: one corrective PR; replace `PR PLACEHOLDER` when opened
+
+### To-do
+
+- [x] Add an exact project/state/account/profile/Region/Git/plan-hash-bound destroy-plan workflow.
+- [x] Require explicit approval and consume only the reviewed Terraform destroy plan.
+- [x] Verify that current Terraform-managed foundation state is empty after destroy without broad service cleanup.
+- [x] Add an SSM-based `make ec2-reset-data` that resets only the fixed Compose project's two containers and named volumes before reseeding and testing.
+- [x] Direct secret rotation with existing named volumes to `ec2-reset-data`, not plain `ec2-bootstrap`.
+- [x] Document the personal-account live-validation sequence, redaction rules, and foundation destroy procedure.
+- [x] Add credential-free contract tests for fail-closed mutation gates and exact reset scope.
+
+### Acceptance
+
+- Destroy planning and execution resolve the exact repository, Terraform root, local state, personal account, profile, `us-east-1`, Git SHA, and unchanged reviewed plan hash.
+- `make destroy-lab` refuses to act without `APPROVE_LAB_DESTROY=1` and never substitutes an unreviewed `terraform destroy`.
+- Post-destroy verification covers current Terraform-managed foundation resources only; final cross-service inventory remains `GLUE-060` work.
+- Secret rotation against persistent databases removes only Compose project `aws-glue-postgres-mongodb-lab` services and its `postgres_data` and `mongodb_data` volumes before deterministic reseed/tests.
+- No live AWS call, Docker start, resource creation, push, merge, or fabricated evidence occurs in this corrective implementation PR.
+- `GLUE-030` and later tasks remain `NOT STARTED`.
 
 ## `GLUE-030` — Glue connections, crawler, and Data Catalog
 
@@ -212,7 +238,7 @@ PR grouping: PR 5 with `GLUE-050`
 - [ ] Complete `docs/runbook/06-DESTROY.md` and `docs/runbook/07-TROUBLESHOOTING.md`.
 - [ ] Document GitHub-to-EC2 clone and optional EC2 write workflow as an optional section, not a prerequisite for the core lab.
 - [ ] Add a simple `make cost-check` that inventories the lab's expected resources. Do not build a cost dashboard or depend on delayed Cost Explorer results.
-- [ ] Add `make destroy-lab` with exact working-directory and project verification.
+- [ ] Reuse the approval-gated `make destroy-lab` for the complete Terraform state and add final cross-service cleanup proof without weakening its exact project/plan binding.
 - [ ] Add `scripts/verify-destroyed.sh` for project-tagged resource checks.
 - [ ] Document manually removed resources, if any.
 - [ ] Run the complete lab from a clean checkout.

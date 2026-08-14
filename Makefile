@@ -9,8 +9,8 @@ COMPOSE := docker compose --env-file .env -f $(COMPOSE_FILE)
 
 .PHONY: help check format-check lint unit-test compose-check terraform-check \
 	local-up local-status local-test local-down \
-	doctor infra-init infra-plan infra-apply secrets-put ec2-bootstrap \
-	deploy crawl run validate rerun-test cost-check destroy-lab
+	doctor infra-init infra-plan infra-apply secrets-put ec2-bootstrap ec2-reset-data \
+	deploy crawl run validate rerun-test cost-check destroy-plan destroy-lab
 
 help: ## Show governance checks and roadmap-owned future targets.
 	@printf '%s\n' \
@@ -31,6 +31,9 @@ help: ## Show governance checks and roadmap-owned future targets.
 		'  make infra-apply       Apply only after APPROVE_LAB_APPLY=1' \
 		'  make secrets-put       Generate and store both database secrets' \
 		'  make ec2-bootstrap     Start/test databases through SSM' \
+		'  make ec2-reset-data    Reset only this project data after secret rotation' \
+		'  make destroy-plan      Save a review-bound Terraform destroy plan' \
+		'  make destroy-lab       Apply only after APPROVE_LAB_DESTROY=1' \
 		'' \
 		'Future operational targets fail with their owning roadmap task.'
 
@@ -68,7 +71,7 @@ local-test: ## Run deterministic source, failure-fixture, and empty-target check
 local-down: ## Stop containers; set RESET_VOLUMES=1 to remove only project volumes.
 	@test -f .env || { printf '%s\n' 'ERROR: .env is required for exact Compose project resolution.' >&2; exit 2; }
 	@if [ "$(RESET_VOLUMES)" = "1" ]; then \
-		$(COMPOSE) down --volumes --remove-orphans; \
+		$(COMPOSE) down --volumes; \
 	else \
 		$(COMPOSE) down --remove-orphans; \
 	fi
@@ -97,6 +100,15 @@ secrets-put: ## Generate fresh values and store them without printing them.
 ec2-bootstrap: ## Start and validate the databases through SSM.
 	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-ssm-bootstrap.sh
 
+ec2-reset-data: ## Remove only this Compose project's data, then reseed and test through SSM.
+	@RESET_DATA="1" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/run-ssm-bootstrap.sh
+
+destroy-plan: ## Save a destroy plan bound to exact project, state, identity, and Git SHA.
+	@AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/terraform-destroy-plan.sh
+
+destroy-lab: ## Apply only the reviewed destroy plan after explicit approval.
+	@APPROVE_LAB_DESTROY="$(APPROVE_LAB_DESTROY)" AWS_PROFILE="$(AWS_PROFILE)" AWS_REGION="$(AWS_REGION)" TERRAFORM="$(TERRAFORM)" ./scripts/terraform-destroy.sh
+
 define fail_not_implemented
 	@printf '%s\n' 'ERROR: make $@ is not implemented; owned by roadmap task $(1).' >&2
 	@exit 2
@@ -111,5 +123,5 @@ run:
 validate rerun-test:
 	$(call fail_not_implemented,GLUE-050)
 
-cost-check destroy-lab:
+cost-check:
 	$(call fail_not_implemented,GLUE-060)

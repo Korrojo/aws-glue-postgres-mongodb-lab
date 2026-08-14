@@ -36,7 +36,7 @@ It does not create a NAT Gateway, public database ingress, scheduled jobs, remot
 Plan approximately two to three hours for a first guided run. A short, promptly destroyed session is intended to cost only a few US dollars, but that is an estimate rather than a quote; current AWS prices, runtime, and retries determine the actual charge. Do not leave the lab running overnight.
 
 > [!WARNING]
-> **Destroy is mandatory.** Finish every lab session with the destroy runbook and `make destroy-lab` after that target is implemented. Stopping EC2 alone does not remove all billable resources.
+> **Destroy is mandatory.** Finish every lab session with the destroy runbook and the reviewed-plan `make destroy-lab` flow. Stopping EC2 alone does not remove all billable resources.
 
 ## Primary sequence
 
@@ -71,4 +71,4 @@ You will need a personal AWS account, GitHub access, a Mac terminal, Git, AWS CL
 
 ## Current status
 
-`GLUE-000` and `GLUE-010` are complete in [PR #1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) and [PR #2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2). `GLUE-020` — the disposable AWS foundation and EC2 workflow — is **PR OPEN** in [PR #3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3). Glue resources, transformation, reconciliation, and destruction automation belong to later roadmap tasks. See the [roadmap](docs/project/ROADMAP.md) for task ownership and status.
+`GLUE-000` and `GLUE-010` are complete in [PR #1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) and [PR #2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2). `GLUE-020` — the disposable AWS foundation and EC2 workflow from [PR #3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3) — is **MERGED — PENDING LIVE VALIDATION**. `GLUE-025` is **IN PROGRESS** to add the focused foundation destroy flow and persistent-volume secret-rotation reset before Glue work begins. `GLUE-030` and later tasks remain not started. See the [roadmap](docs/project/ROADMAP.md) for task ownership and status.

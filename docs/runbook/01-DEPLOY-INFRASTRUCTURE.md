@@ -1,12 +1,29 @@
 # 01 — Deploy AWS Infrastructure
 
-Owner: `GLUE-020`  
+Owner: `GLUE-020`; corrected by `GLUE-025`
 Status: implemented by `GLUE-020`
 
 Create the disposable AWS foundation from one understandable Terraform root. This runbook creates no Glue job, crawler, connection, NAT Gateway, load balancer, remote state, deployment pipeline, database credential value, or inbound SSH rule.
 
 > [!CAUTION]
 > `make infra-apply` creates billable resources in the currently selected AWS account. Confirm a personal identity and `us-east-1` immediately before planning and applying. Never paste account IDs, ARNs containing an account ID, secret values, public IP addresses, or live endpoints into commits or PR evidence.
+
+## Personal-account live-validation checklist
+
+Follow this exact order from a clean checkout in the intended personal account; do not skip plan review:
+
+1. `make doctor`
+2. `make infra-plan`
+3. review the saved infrastructure plan
+4. approved apply: `APPROVE_LAB_APPLY=1 make infra-apply`
+5. `make secrets-put`
+6. `make ec2-bootstrap`
+7. `make destroy-plan`
+8. review the saved destroy plan
+9. approved destroy: `APPROVE_LAB_DESTROY=1 make destroy-lab`
+10. confirm Terraform-managed resource removal as documented in runbook 06
+
+Keep evidence local until it is redacted. Remove AWS account IDs, principal ARNs, instance IDs, public IP addresses, secret values, credentialed connection strings, and live endpoints from any public evidence. Do not fabricate evidence: record only commands actually run and outputs actually observed; label failures, skips, and limitations explicitly.
 
 ## Step 1 — Pin the repository revision and AWS session
 
@@ -73,7 +90,7 @@ Return to runbook 00. Missing AWS authentication or an unexpected account is a h
 
 **Next**
 
-Review exactly what Terraform is allowed to create.
+Review exactly what Terraform is allowed to create; review the saved infrastructure plan before approval.
 
 ## Step 2 — Review the bounded resource model
 
@@ -418,7 +435,7 @@ aws secretsmanager describe-secret --profile "$AWS_PROFILE" --region "$AWS_REGIO
 
 **Repeat, reset, or rollback**
 
-Re-running `make secrets-put` first proves the current STS account and Region match Terraform state, then deliberately rotates both values. After rotation, rerun `make ec2-bootstrap`; its temporary EC2 `.env` is deleted immediately after startup and tests.
+Re-running `make secrets-put` first proves the current STS account and Region match Terraform state, then deliberately rotates both values. If the databases have already initialized persistent named volumes, run `make ec2-reset-data`; `make ec2-bootstrap` alone does not rotate initialized database credentials. The reset retrieves the current secrets without printing them, removes only this fixed Compose project's two containers and named volumes, reseeds, tests, and deletes its temporary EC2 `.env`.
 
 **If it fails**
 
@@ -480,7 +497,7 @@ The status must be `Success`. The output includes `git_sha=...`, `temporary envi
 
 **Repeat, reset, or rollback**
 
-Safe to rerun against unchanged secret values and code. For a clean database reseed, run the project-scoped `make local-down RESET_VOLUMES=1` through SSM, then rerun `make ec2-bootstrap`.
+Safe to rerun against unchanged secret values and code. After `make secrets-put` rotates values for databases that already use named volumes, run `make ec2-reset-data`; `make ec2-bootstrap` alone does not replace credentials embedded when those volumes were initialized.
 
 **If it fails**
 
@@ -580,27 +597,28 @@ The same personal AWS profile and Region.
 **Command**
 
 ```bash
-terraform -chdir=infrastructure/terraform plan -destroy -out=destroy.tfplan
+make destroy-plan
 terraform -chdir=infrastructure/terraform show destroy.tfplan
 ```
 
 **Expected result**
 
-The destroy plan includes only Terraform-managed, project-tagged lab resources. The S3 bucket uses `force_destroy` so project objects will not strand teardown; the two disposable secrets use zero-day recovery.
+The target first proves the exact repository and Terraform roots, local-state project identity, personal account, profile, `us-east-1`, and clean Git SHA. The destroy plan includes only resources currently managed in this project's Terraform state. The S3 bucket uses `force_destroy` so project objects will not strand teardown; the two disposable secrets use zero-day recovery. Ignored mode-`0600` metadata binds the state lineage/serial/resource set and plan hash for later approval.
 
 **Verify**
 
-Confirm no unrelated AWS resource appears and the plan contains no secret value.
+Review the saved destroy plan and confirm no unrelated AWS resource appears, every action is a destroy of a current foundation resource, and the plan contains no secret value. Do not approve it when any target is unfamiliar.
 
 **Repeat, reset, or rollback**
 
-Delete the ignored review artifact after inspection:
+Re-running `make destroy-plan` replaces the ignored plan and its identity metadata. To abandon review, delete both artifacts:
 
 ```bash
-rm -f infrastructure/terraform/destroy.tfplan
+rm -f infrastructure/terraform/destroy.tfplan \
+  infrastructure/terraform/.destroy.tfplan.identity.json
 ```
 
-Do not apply the destroy plan during GLUE-020. Final cleanup and evidence belong to [06 — Destroy](06-DESTROY.md).
+Apply this exact plan only through the approval-gated steps in [06 — Destroy](06-DESTROY.md).
 
 **If it fails**
 
@@ -608,4 +626,4 @@ Resolve state drift before adding later Glue resources. Never remove resources m
 
 **Next**
 
-Proceed to [02 — Start and Verify the Databases](02-START-DATABASES.md). Later tasks must not begin until the GLUE-020 PR is reviewed and merged.
+For the complete personal-account validation, start and test the databases in [02 — Start and Verify the Databases](02-START-DATABASES.md), then return to [06 — Destroy](06-DESTROY.md) and consume a newly reviewed destroy plan.
