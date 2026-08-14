@@ -177,8 +177,10 @@ def test_database_runbook_replaces_the_template_with_executable_sections() -> No
     assert "## Optional — Run the data layer on the Mac" in runbook
     assert "glue_username" not in runbook
     assert "glue_password" not in runbook
-    assert 'mongodb["username"]' in runbook
-    assert 'mongodb["password"]' in runbook
+    assert 'mongodb["root_username"]' in runbook
+    assert 'mongodb["root_password"]' in runbook
+    assert 'mongodb_glue["username"]' in runbook
+    assert 'mongodb_glue["password"]' in runbook
     assert "rm -f .env" in runbook
     for field in (
         "**Purpose**",

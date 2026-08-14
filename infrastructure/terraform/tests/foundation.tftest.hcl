@@ -17,6 +17,14 @@ mock_provider "aws" {
     }
   }
 
+  mock_resource "aws_iam_role" {
+    defaults = {
+      arn  = "arn:aws:iam::123456789012:role/mock-lab-role"
+      id   = "mock-lab-role"
+      name = "mock-lab-role"
+    }
+  }
+
   mock_data "aws_iam_policy_document" {
     defaults = {
       json = "{}"
@@ -67,6 +75,14 @@ run "foundation_plan" {
 
   assert {
     condition = alltrue([
+      aws_secretsmanager_secret.mongodb.recovery_window_in_days == 0,
+      aws_secretsmanager_secret.mongodb_glue.recovery_window_in_days == 0,
+    ])
+    error_message = "Both disposable MongoDB secrets must delete during teardown."
+  }
+
+  assert {
+    condition = alltrue([
       length(aws_security_group.glue.ingress) == 0,
       length(aws_security_group.database_host.ingress) == 0,
       length(aws_security_group.endpoint.ingress) == 0,
@@ -82,5 +98,65 @@ run "foundation_plan" {
       aws_vpc_security_group_ingress_rule.endpoint_from_database_host.cidr_ipv6 == null,
     ])
     error_message = "Every ingress path must reference another lab security group; public CIDRs and inline ingress are forbidden."
+  }
+
+  assert {
+    condition = (
+      aws_glue_connection.postgres.physical_connection_requirements[0].subnet_id ==
+      aws_glue_connection.mongodb.physical_connection_requirements[0].subnet_id
+    )
+    error_message = "Both Glue connections must use the one lab subnet."
+  }
+
+  assert {
+    condition = (
+      aws_glue_connection.postgres.connection_properties["SECRET_ID"] == aws_secretsmanager_secret.postgres.name &&
+      aws_glue_connection.mongodb.connection_properties["SECRET_ID"] == aws_secretsmanager_secret.mongodb_glue.name &&
+      toset(keys(aws_glue_connection.postgres.connection_properties)) == toset(["JDBC_CONNECTION_URL", "SECRET_ID"]) &&
+      toset(keys(aws_glue_connection.mongodb.connection_properties)) == toset(["CONNECTION_URL", "SECRET_ID"])
+    )
+    error_message = "Glue connections must use only credential-free URLs and named Secrets Manager references."
+  }
+
+  assert {
+    condition = (
+      toset(aws_glue_connection.postgres.physical_connection_requirements[0].security_group_id_list) == toset([aws_security_group.glue.id]) &&
+      toset(aws_glue_connection.mongodb.physical_connection_requirements[0].security_group_id_list) == toset([aws_security_group.glue.id])
+    )
+    error_message = "Both Glue connections must use only the one Glue security group."
+  }
+
+  assert {
+    condition     = aws_glue_crawler.orders.schedule == null
+    error_message = "The crawler must remain unscheduled and user-run only."
+  }
+
+  assert {
+    condition = toset([
+      for target in aws_glue_crawler.orders.jdbc_target : target.path
+    ]) == toset(["sales_lab/sales/orders", "sales_lab/sales/order_items"])
+    error_message = "The crawler must target exactly the two sales tables."
+  }
+
+  assert {
+    condition = (
+      aws_glue_job.orders_to_mongodb.glue_version == "5.1" &&
+      aws_glue_job.orders_to_mongodb.worker_type == "G.1X" &&
+      aws_glue_job.orders_to_mongodb.number_of_workers == 2 &&
+      aws_glue_job.orders_to_mongodb.execution_property[0].max_concurrent_runs == 1 &&
+      toset(aws_glue_job.orders_to_mongodb.connections) == toset([
+        aws_glue_connection.postgres.name,
+        aws_glue_connection.mongodb.name,
+      ])
+    )
+    error_message = "The job must remain on the small Glue 5.1 lab baseline."
+  }
+
+  assert {
+    condition = (
+      aws_glue_job.orders_to_mongodb.default_arguments["--TempDir"] ==
+      "s3://${aws_s3_bucket.artifacts.id}/tmp/"
+    )
+    error_message = "The job must use only the Terraform-managed temporary S3 prefix."
   }
 }

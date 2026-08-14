@@ -1,5 +1,11 @@
 # Acceptance and Test Plan
 
+## Acceptance ownership
+
+Development agents must never request, obtain, or use AWS credentials and must never execute AWS commands or live Terraform operations. Development acceptance is complete with credential-free static checks, mocked service boundaries, Terraform validation/mock-provider tests, Python/Spark unit tests, and local container tests. No agent-run live AWS evidence is required.
+
+Items explicitly labeled **USER-RUN ONLY** are a post-clone lab checklist for the user, not PR gates. A failure discovered there must be filed as a separate issue/PR.
+
 ## 0. Documentation usability and lab simplicity
 
 - [ ] README is a concise introduction, architecture summary, sequence, and runbook index—not a competing abbreviated manual.
@@ -12,7 +18,7 @@
 - [ ] Every action has a verification command and explicit pass condition.
 - [ ] Rerun, reset, or rollback behavior is documented.
 - [ ] Likely failures include diagnosis, correction, and retry commands.
-- [ ] Instructions were executed against the branch that introduced them.
+- [ ] Observed credential-free command-contract execution covers the branch that introduced each instruction; user-run AWS commands remain an optional separate checklist and are never inferred as passed.
 - [ ] No owning task is `DONE` while its runbook contains implementation markers or `TODO` instructions.
 - [ ] Optional local Docker and EC2-push paths are clearly separated from the core lab.
 - [ ] No multi-environment framework, remote Terraform backend, deployment pipeline, custom AMI, HA topology, production PKI, autoscaling, dashboard platform, or policy-as-code framework was added.
@@ -77,6 +83,10 @@
 - [ ] Line totals retain exact decimal behavior.
 - [ ] Order totals equal exact sum of line totals.
 - [ ] Null primary key fails.
+- [ ] Null deletion flags fail before soft-delete filtering.
+- [ ] Null child `order_id` or `line_number` fails.
+- [ ] Null or negative quantity fails.
+- [ ] Null price and required order/item values fail.
 - [ ] Duplicate business key fails.
 - [ ] Orphan item fails.
 - [ ] Zero/negative quantity fails.
@@ -125,7 +135,9 @@ Additional checks:
 - [ ] Reconciliation exits nonzero after an intentional mismatch.
 - [ ] Reconciliation output is redacted and machine-readable.
 
-## 8. Rerun behavior
+## 8. User-run-only rerun behavior (optional lab evidence)
+
+The supported `GLUE-040` contract is the initial snapshot and unchanged-source reruns. `replaceDocument=true` does not delete an already-emitted target document when its source order later becomes soft-deleted. Changed-source deletion convergence must be detected and explicitly resolved in `GLUE-050`; it is not provided by destructive pre-load or CDC.
 
 - [ ] Capture target count and selected document hashes after run 1.
 - [ ] Run the identical Glue job again.
@@ -135,9 +147,10 @@ Additional checks:
 - [ ] Apply one controlled source update.
 - [ ] Run the snapshot job again.
 - [ ] Corresponding MongoDB document reflects the controlled update.
-- [ ] Connector behavior is recorded in the PR evidence.
+- [ ] Connector behavior may be recorded later as user-supplied redacted evidence, separately from development acceptance.
+- [ ] Active-on-run-1/deleted-on-run-2 leaves a stale target that reconciliation detects and the user-run resolution handles explicitly.
 
-## 9. Destruction and cost
+## 9. User-run-only destruction and cost (optional lab evidence)
 
 - [ ] `make cost-check` inventories the expected lab resources.
 - [ ] `make destroy-lab` verifies project and working directory before destroy.
@@ -148,9 +161,9 @@ Additional checks:
 - [ ] README warns against leaving resources running overnight.
 - [ ] Destroy runbook states that stopping EC2 alone is not sufficient cleanup.
 
-## 10. Required final evidence
+## 10. Required development evidence
 
-The final PR must include redacted outputs for:
+The implementation PR includes observed credential-free results for:
 
 ```bash
 make format-check
@@ -158,16 +171,30 @@ make lint
 make unit-test
 make compose-check
 make terraform-check
+bash -n scripts/*.sh
+git diff --check
+```
+
+Static/mock versus local-container scope, skipped checks, and limitations must be explicit. No AWS credential, AWS call, live Terraform plan/apply, connection test, crawler/job run, SSM action, Secrets Manager action, resource creation, or teardown validation is permitted for agent development.
+
+## 11. User-run-only lab evidence
+
+After cloning completed reviewed code, the user may run the operational sequence:
+
+```bash
 make doctor
-make deploy
-make crawl
-make run
+make infra-plan
+APPROVE_LAB_APPLY=1 make infra-apply
+APPROVE_LAB_SECRETS=1 make secrets-put
+make ec2-bootstrap
+APPROVE_GLUE_DEPLOY=1 make deploy
+APPROVE_GLUE_CRAWL=1 make crawl
+APPROVE_GLUE_RUN=1 make run
 make validate
 make rerun-test
 make cost-check
-make destroy-lab
+make destroy-plan
+APPROVE_LAB_DESTROY=1 make destroy-lab
 ```
 
-Evidence may be summarized, but failures, skipped checks, and limitations must be explicit.
-
-The final PR must also state which person or agent followed the ordered runbooks from a clean checkout and list every documentation correction discovered during that run.
+These commands are **USER-RUN ONLY**, are not agent development gates, and must not be represented as passed without user-supplied redacted output. The user records who followed the ordered runbooks and any corrections discovered. A failure becomes a separate issue/PR.

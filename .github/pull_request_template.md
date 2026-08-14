@@ -29,13 +29,23 @@
 
 ## Tests
 
-Commands run and observed results:
+Credential-free commands run and observed results (static/mock/Terraform validation/Python unit/local container only):
 
 ```text
 <command and result>
 ```
 
-Skipped checks and reason:
+- [ ] No AWS credentials were requested, obtained, or used.
+- [ ] No AWS call, live Terraform operation, Glue execution, resource creation, or teardown validation was performed by an agent.
+- [ ] No agent-run live AWS evidence is required.
+
+User-run-only AWS commands: not an agent PR gate. Record only user-supplied redacted results, or state `not run — user-run only after clone`.
+
+```text
+<user-supplied command/result or not run — user-run only after clone>
+```
+
+Skipped credential-free checks and reason:
 
 ## Acceptance criteria
 
@@ -47,7 +57,7 @@ Skipped checks and reason:
 - [ ] README/runbook updated where behavior changed.
 - [ ] The implementing worker updated the affected runbook in this PR.
 - [ ] Commands include prerequisites, run location, expected result, verification, reset/rerun behavior, and focused troubleshooting.
-- [ ] Documented commands and expected results were observed on this branch.
+- [ ] AWS commands are labeled **User-run only**; their expected results are documented but not claimed as agent-observed.
 - [ ] No unnecessary production-grade component was introduced.
 - [ ] ROADMAP status and PR reference updated.
 - [ ] Limitations and future work are explicit.

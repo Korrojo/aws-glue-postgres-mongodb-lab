@@ -271,7 +271,15 @@ resource "aws_secretsmanager_secret" "mongodb" {
   #checkov:skip=CKV_AWS_149:The disposable lab uses the AWS-managed Secrets Manager key instead of a new CMK.
   #checkov:skip=CKV2_AWS_57:Values are generated per lab run and destroyed; a rotation service is production-only complexity.
   name                    = "/${local.project_name}/mongodb"
-  description             = "Disposable MongoDB lab credentials; value seeded outside Terraform"
+  description             = "Disposable MongoDB bootstrap administrator credentials; value seeded outside Terraform"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret" "mongodb_glue" {
+  #checkov:skip=CKV_AWS_149:The disposable lab uses the AWS-managed Secrets Manager key instead of a new CMK.
+  #checkov:skip=CKV2_AWS_57:Values are generated per lab run and destroyed; a rotation service is production-only complexity.
+  name                    = "/${local.project_name}/mongodb-glue"
+  description             = "Disposable connector-only MongoDB credentials; value seeded outside Terraform"
   recovery_window_in_days = 0
 }
 
@@ -298,9 +306,13 @@ resource "aws_iam_role_policy_attachment" "ec2_ssm" {
 
 data "aws_iam_policy_document" "ec2_secrets" {
   statement {
-    sid       = "ReadLabDatabaseSecrets"
-    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-    resources = [aws_secretsmanager_secret.postgres.arn, aws_secretsmanager_secret.mongodb.arn]
+    sid     = "ReadLabDatabaseSecrets"
+    actions = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+    resources = [
+      aws_secretsmanager_secret.postgres.arn,
+      aws_secretsmanager_secret.mongodb.arn,
+      aws_secretsmanager_secret.mongodb_glue.arn,
+    ]
   }
 }
 
@@ -366,7 +378,7 @@ data "aws_iam_policy_document" "glue_lab_access" {
 
   statement {
     sid       = "TagGlueNetworkInterfaces"
-    actions   = ["ec2:CreateTags"]
+    actions   = ["ec2:CreateTags", "ec2:DeleteTags"]
     resources = ["arn:${data.aws_partition.current.partition}:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:network-interface/*"]
 
     condition {
@@ -402,29 +414,78 @@ data "aws_iam_policy_document" "glue_lab_access" {
   }
 
   statement {
-    sid = "ReadLabArtifactBucket"
+    sid = "ReadLabArtifactBucketMetadata"
     actions = [
       "s3:GetBucketAcl",
       "s3:GetBucketLocation",
-      "s3:ListBucket",
     ]
     resources = [aws_s3_bucket.artifacts.arn]
   }
 
   statement {
-    sid = "UseLabArtifactObjects"
+    sid       = "ListLabArtifactBucket"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.artifacts.arn]
+
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["glue/artifacts/*", "tmp/*"]
+    }
+  }
+
+  statement {
+    sid       = "ReadLabArtifactObjects"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.artifacts.arn}/glue/artifacts/*"]
+  }
+
+  statement {
+    sid = "UseLabTemporaryObjects"
     actions = [
       "s3:GetObject",
       "s3:PutObject",
       "s3:DeleteObject",
     ]
-    resources = ["${aws_s3_bucket.artifacts.arn}/*"]
+    resources = ["${aws_s3_bucket.artifacts.arn}/tmp/*"]
   }
 
   statement {
-    sid       = "ReadLabDatabaseSecrets"
-    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-    resources = [aws_secretsmanager_secret.postgres.arn, aws_secretsmanager_secret.mongodb.arn]
+    sid = "ManageLabCatalog"
+    actions = [
+      "glue:BatchCreatePartition",
+      "glue:BatchDeletePartition",
+      "glue:BatchGetPartition",
+      "glue:CreatePartition",
+      "glue:CreateTable",
+      "glue:DeletePartition",
+      "glue:GetConnection",
+      "glue:GetConnections",
+      "glue:GetDatabase",
+      "glue:GetDatabases",
+      "glue:GetPartition",
+      "glue:GetPartitions",
+      "glue:GetTable",
+      "glue:GetTables",
+      "glue:UpdatePartition",
+      "glue:UpdateTable",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:catalog",
+      aws_glue_catalog_database.lab.arn,
+      "arn:${data.aws_partition.current.partition}:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${aws_glue_catalog_database.lab.name}/*",
+      aws_glue_connection.postgres.arn,
+      aws_glue_connection.mongodb.arn,
+    ]
+  }
+
+  statement {
+    sid     = "ReadLabDatabaseSecrets"
+    actions = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+    resources = [
+      aws_secretsmanager_secret.postgres.arn,
+      aws_secretsmanager_secret.mongodb_glue.arn,
+    ]
   }
 }
 
@@ -438,6 +499,129 @@ resource "aws_iam_role_policy" "glue_network_read" {
   name   = "lab-network-read"
   role   = aws_iam_role.glue.id
   policy = data.aws_iam_policy_document.glue_network_read.json
+}
+
+resource "aws_glue_catalog_database" "lab" {
+  name        = replace(local.project_name, "-", "_")
+  description = "Catalog for the two synthetic PostgreSQL sales tables"
+
+  tags = {
+    Name = "${local.project_name}-catalog"
+  }
+}
+
+resource "aws_glue_connection" "postgres" {
+  name            = "${local.project_name}-postgres"
+  description     = "PostgreSQL sales source using the lab secret"
+  connection_type = "JDBC"
+
+  connection_properties = {
+    JDBC_CONNECTION_URL = "jdbc:postgresql://${aws_instance.database_host.private_ip}:5432/sales_lab"
+    SECRET_ID           = aws_secretsmanager_secret.postgres.name
+  }
+
+  physical_connection_requirements {
+    availability_zone      = var.availability_zone
+    security_group_id_list = [aws_security_group.glue.id]
+    subnet_id              = aws_subnet.lab.id
+  }
+
+  tags = {
+    Name = "${local.project_name}-postgres-connection"
+  }
+}
+
+resource "aws_glue_connection" "mongodb" {
+  name            = "${local.project_name}-mongodb"
+  description     = "Native MongoDB target using the lab secret"
+  connection_type = "MONGODB"
+
+  connection_properties = {
+    CONNECTION_URL = "mongodb://${aws_instance.database_host.private_ip}:27017/migration_lab"
+    SECRET_ID      = aws_secretsmanager_secret.mongodb_glue.name
+  }
+
+  physical_connection_requirements {
+    availability_zone      = var.availability_zone
+    security_group_id_list = [aws_security_group.glue.id]
+    subnet_id              = aws_subnet.lab.id
+  }
+
+  tags = {
+    Name = "${local.project_name}-mongodb-connection"
+  }
+}
+
+resource "aws_glue_crawler" "orders" {
+  name          = "${local.project_name}-orders"
+  description   = "On-demand crawler for exactly the two sales source tables"
+  database_name = aws_glue_catalog_database.lab.name
+  role          = aws_iam_role.glue.arn
+
+  jdbc_target {
+    connection_name = aws_glue_connection.postgres.name
+    path            = "sales_lab/sales/orders"
+  }
+
+  jdbc_target {
+    connection_name = aws_glue_connection.postgres.name
+    path            = "sales_lab/sales/order_items"
+  }
+
+  schema_change_policy {
+    delete_behavior = "LOG"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+
+  recrawl_policy {
+    recrawl_behavior = "CRAWL_EVERYTHING"
+  }
+
+  tags = {
+    Name = "${local.project_name}-orders-crawler"
+  }
+}
+
+resource "aws_glue_job" "orders_to_mongodb" {
+  name              = "${local.project_name}-orders-to-mongodb"
+  description       = "On-demand snapshot transformation from PostgreSQL to MongoDB"
+  role_arn          = aws_iam_role.glue.arn
+  glue_version      = "5.1"
+  worker_type       = "G.1X"
+  number_of_workers = 2
+  timeout           = 15
+  max_retries       = 0
+  connections       = [aws_glue_connection.postgres.name, aws_glue_connection.mongodb.name]
+
+  command {
+    name            = "glueetl"
+    python_version  = "3"
+    script_location = "s3://${aws_s3_bucket.artifacts.id}/glue/artifacts/jobs/postgres_orders_to_mongodb.py"
+  }
+
+  default_arguments = {
+    "--enable-continuous-cloudwatch-log" = "true"
+    "--enable-metrics"                   = "true"
+    "--enable-observability-metrics"     = "true"
+    "--extra-py-files"                   = "s3://${aws_s3_bucket.artifacts.id}/glue/artifacts/python/glue_lab.zip"
+    "--TempDir"                          = "s3://${aws_s3_bucket.artifacts.id}/tmp/"
+    "--job-language"                     = "python"
+    "--CATALOG_DATABASE"                 = aws_glue_catalog_database.lab.name
+    "--ORDERS_TABLE"                     = "orders"
+    "--ORDER_ITEMS_TABLE"                = "order_items"
+    "--MONGODB_CONNECTION"               = aws_glue_connection.mongodb.name
+    "--MONGODB_DATABASE"                 = "migration_lab"
+    "--MONGODB_COLLECTION"               = "orders"
+    "--SNAPSHOT_MODE"                    = "snapshot"
+  }
+
+  execution_property {
+    max_concurrent_runs = 1
+  }
+
+  tags = {
+    Name = "${local.project_name}-orders-to-mongodb"
+  }
 }
 
 resource "aws_instance" "database_host" {

@@ -3,6 +3,8 @@
 Owner: `GLUE-020`; corrected by `GLUE-025`
 Status: implemented by `GLUE-020`
 
+> **User-run only:** Agents must never request or use AWS credentials or execute these AWS/Terraform commands. No agent-run live AWS evidence is required; development uses static/mock/Terraform/unit/container checks. A later user-run failure belongs in a separate issue/PR.
+
 Create the disposable AWS foundation from one understandable Terraform root. This runbook creates no Glue job, crawler, connection, NAT Gateway, load balancer, remote state, deployment pipeline, database credential value, or inbound SSH rule.
 
 > [!CAUTION]
@@ -16,7 +18,7 @@ Follow this exact order from a clean checkout in the intended personal account; 
 2. `make infra-plan`
 3. review the saved infrastructure plan
 4. approved apply: `APPROVE_LAB_APPLY=1 make infra-apply`
-5. `make secrets-put`
+5. `APPROVE_LAB_SECRETS=1 make secrets-put`
 6. `make ec2-bootstrap`
 7. `make destroy-plan`
 8. review the saved destroy plan
@@ -125,7 +127,7 @@ Terraform formatting, initialization, validation, and the credential-free mocked
 - an S3 gateway endpoint and a Secrets Manager interface endpoint;
 - Glue, database-host, and endpoint security groups;
 - one private encrypted S3 artifact bucket with a one-day `tmp/` lifecycle rule;
-- two empty Secrets Manager secret containers;
+- three empty Secrets Manager secret containers: PostgreSQL, MongoDB bootstrap administrator, and MongoDB connector;
 - one EC2 role/profile and one Glue role;
 - one Amazon Linux 2023 `t3.medium` instance with an encrypted 30 GiB gp3 root volume;
 - user data that installs Docker/Git, verifies pinned Docker Compose `v5.4.0`, clones the selected public branch, enables SSM, and records the Git SHA.
@@ -355,6 +357,7 @@ aws ec2 describe-security-group-rules --profile "$AWS_PROFILE" --region "$AWS_RE
 aws s3api get-public-access-block --profile "$AWS_PROFILE" --region "$AWS_REGION" --bucket "$bucket"
 aws secretsmanager describe-secret --profile "$AWS_PROFILE" --region "$AWS_REGION" --secret-id /aws-glue-postgres-mongodb-lab/postgres
 aws secretsmanager describe-secret --profile "$AWS_PROFILE" --region "$AWS_REGION" --secret-id /aws-glue-postgres-mongodb-lab/mongodb
+aws secretsmanager describe-secret --profile "$AWS_PROFILE" --region "$AWS_REGION" --secret-id /aws-glue-postgres-mongodb-lab/mongodb-glue
 aws ssm describe-instance-information --profile "$AWS_PROFILE" --region "$AWS_REGION" --filters "Key=InstanceIds,Values=$instance_id"
 ```
 
@@ -364,7 +367,7 @@ aws ssm describe-instance-information --profile "$AWS_PROFILE" --region "$AWS_RE
 - Database ingress is only from the Glue security-group ID on TCP 5432 and 27017.
 - Glue has its self-referencing all-TCP rule.
 - S3 public access flags are all `true`.
-- Both secret containers exist, but no value has been created yet.
+- All three secret containers exist, but no value has been created yet.
 - SSM reports the instance `Online`; no SSH session or port 22 is required.
 
 **Verify**
@@ -389,7 +392,7 @@ Read-only and safe to repeat. If user data is corrected, Terraform may replace t
 
 **Next**
 
-Generate the two secret values.
+Generate the three secret values.
 
 ## Step 7 — Generate and store database secret values
 
@@ -404,7 +407,7 @@ Create fresh random credentials outside Terraform and store them without printin
 **Prerequisites**
 
 - Terraform apply and Step 6 verification passed.
-- Both secret containers exist.
+- All three secret containers exist.
 - Terminal command tracing is disabled.
 
 **Inputs**
@@ -415,7 +418,7 @@ The script resolves the secret names and database private IP from Terraform outp
 
 ```bash
 set +x
-make secrets-put
+APPROVE_LAB_SECRETS=1 make secrets-put
 ```
 
 **Expected result**
@@ -431,15 +434,17 @@ aws secretsmanager describe-secret --profile "$AWS_PROFILE" --region "$AWS_REGIO
   --secret-id /aws-glue-postgres-mongodb-lab/postgres --query LastChangedDate --output text
 aws secretsmanager describe-secret --profile "$AWS_PROFILE" --region "$AWS_REGION" \
   --secret-id /aws-glue-postgres-mongodb-lab/mongodb --query LastChangedDate --output text
+aws secretsmanager describe-secret --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  --secret-id /aws-glue-postgres-mongodb-lab/mongodb-glue --query LastChangedDate --output text
 ```
 
 **Repeat, reset, or rollback**
 
-Re-running `make secrets-put` first proves the current STS account and Region match Terraform state, then deliberately rotates both values. If the databases have already initialized persistent named volumes, run `make ec2-reset-data`; `make ec2-bootstrap` alone does not rotate initialized database credentials. The reset retrieves the current secrets without printing them, removes only this fixed Compose project's two containers and named volumes, reseeds, tests, and deletes its temporary EC2 `.env`.
+Re-running `APPROVE_LAB_SECRETS=1 make secrets-put` first proves the current STS account and Region match Terraform state, then deliberately rotates all three values. If the databases have already initialized persistent named volumes, run `make ec2-reset-data`; `make ec2-bootstrap` alone does not rotate initialized database credentials. The reset retrieves the current secrets without printing them, removes only this fixed Compose project's two containers and named volumes, reseeds, tests, and deletes its temporary EC2 `.env`.
 
 **If it fails**
 
-Confirm `secretsmanager:PutSecretValue` on only the two lab secrets. Do not print, paste, or commit a secret to diagnose the issue.
+Confirm `secretsmanager:PutSecretValue` on only the three lab secrets. Do not print, paste, or commit a secret to diagnose the issue.
 
 **Next**
 
@@ -458,7 +463,7 @@ Retrieve secrets on EC2, write a temporary mode-`0600` `.env`, start both pinned
 **Prerequisites**
 
 - SSM instance status is `Online`.
-- Step 7 stored both secret values.
+- Step 7 stored all three secret values.
 - EC2 user data cloned the selected public branch to `/opt/aws-glue-postgres-mongodb-lab`.
 
 **Inputs**
@@ -476,7 +481,7 @@ make ec2-bootstrap
 The SSM command succeeds. On EC2 it:
 
 1. fast-forwards the current public branch;
-2. retrieves both secrets using the instance role without printing them;
+2. retrieves all three secrets using the instance role without printing them;
 3. writes `.env` with mode `0600` and binds database ports on the EC2 interface;
 4. runs `make local-up` and `make local-test`;
 5. deletes `.env` immediately on success or failure;
@@ -497,7 +502,7 @@ The status must be `Success`. The output includes `git_sha=...`, `temporary envi
 
 **Repeat, reset, or rollback**
 
-Safe to rerun against unchanged secret values and code. After `make secrets-put` rotates values for databases that already use named volumes, run `make ec2-reset-data`; `make ec2-bootstrap` alone does not replace credentials embedded when those volumes were initialized.
+Safe to rerun against unchanged secret values and code. After `APPROVE_LAB_SECRETS=1 make secrets-put` rotates values for databases that already use named volumes, run `make ec2-reset-data`; `make ec2-bootstrap` alone does not replace credentials embedded when those volumes were initialized.
 
 **If it fails**
 
@@ -603,7 +608,7 @@ terraform -chdir=infrastructure/terraform show destroy.tfplan
 
 **Expected result**
 
-The target first proves the exact repository and Terraform roots, local-state project identity, personal account, profile, `us-east-1`, and clean Git SHA. The destroy plan includes only resources currently managed in this project's Terraform state. The S3 bucket uses `force_destroy` so project objects will not strand teardown; the two disposable secrets use zero-day recovery. Ignored mode-`0600` metadata binds the state lineage/serial/resource set and plan hash for later approval.
+The target first proves the exact repository and Terraform roots, local-state project identity, personal account, profile, `us-east-1`, and clean Git SHA. The destroy plan includes only resources currently managed in this project's Terraform state. The S3 bucket uses `force_destroy` so project objects will not strand teardown; the three disposable secrets use zero-day recovery. Ignored mode-`0600` metadata binds the state lineage/serial/resource set and plan hash for later approval.
 
 **Verify**
 

@@ -413,7 +413,7 @@ Review access for these service actions:
 - EC2/VPC: VPC, subnet, route, internet gateway, security groups, two VPC endpoints, one `t3.medium` instance, and SSM status.
 - IAM: create/delete the two lab roles, instance profile, inline policies, and managed-policy attachments; `iam:PassRole` for the lab roles.
 - S3: create/configure/delete one project-tagged bucket and its objects.
-- Secrets Manager: create, describe, update, read, and delete only the two project secrets.
+- Secrets Manager: create, describe, update, read, and delete only the three project secrets (PostgreSQL, MongoDB bootstrap administrator, and MongoDB connector).
 - SSM and public SSM parameters: resolve the Amazon Linux 2023 AMI, send commands, and read invocation status.
 - Glue permissions are created for later tasks; `GLUE-020` does not create Glue jobs, crawlers, or connections.
 

@@ -50,6 +50,12 @@ Do not add:
 
 Credential protection, restricted database ports, resource tagging, verification, and reliable teardown are required lab safety—not production-grade expansion.
 
+### 1.2 Development versus lab execution
+
+Repository development is credential-free. Hermes, Codex, and every development agent must never request or use AWS credentials and must never perform live AWS deployment, connection tests, crawler/job runs, or teardown validation. Development completion is established by static checks, mocked service-boundary tests, Terraform validation and mock-provider tests, Python/Spark unit tests, and local container tests.
+
+All AWS commands are preserved as **user-run only** instructions for a person using a completed clone. No agent-run live AWS evidence is required. If that later user-run lab exposes a failure, the failure is tracked and corrected in a separate issue/PR; it does not retroactively block the credential-free implementation PR.
+
 ## 2. Fixed decisions
 
 | Decision | Version 1 choice |
@@ -164,7 +170,7 @@ Create:
 - Initial size: `t3.medium`.
 - Encrypted gp3 root volume sized only for the lab.
 - Systems Manager instance profile.
-- Lab-scoped permission to read the two database secrets and write only the public deploy-key value if that optional workflow is implemented.
+- Lab-scoped permission to read the three database secrets and write only the public deploy-key value if that optional workflow is implemented.
 - User data installs Git and Docker, enables Docker, and records bootstrap completion.
 - Database startup occurs only after secret values exist.
 
@@ -195,7 +201,10 @@ The private key remains on the disposable EC2 instance, is never returned in com
 Terraform creates secret containers but not secret values:
 
 - `/aws-glue-postgres-mongodb-lab/postgres`
-- `/aws-glue-postgres-mongodb-lab/mongodb`
+- `/aws-glue-postgres-mongodb-lab/mongodb` for bootstrap administration only;
+- `/aws-glue-postgres-mongodb-lab/mongodb-glue` for the Glue connector only.
+
+The bootstrap secret contains only `root_username`, `root_password`, `host`, `port`, and `database`. The connector secret contains only `username`, `password`, `host`, `port`, and `database`. Glue can read the PostgreSQL and connector secrets but cannot read the MongoDB bootstrap-administrator secret; EC2 reads all three to compose the temporary container environment.
 
 A Mac-side script generates passwords locally and calls `aws secretsmanager put-secret-value` without printing the values. Secret values must not be Terraform variables, Terraform outputs, Make arguments, GitHub secrets, or repository files.
 
@@ -290,6 +299,7 @@ Collection: `orders`
 - `orderTotal = sum(items.lineTotal)`.
 - Relational `order_id` is not repeated inside each embedded item.
 - Soft-deleted orders and items are omitted from the snapshot.
+- An active order with zero active items fails source validation; the snapshot never emits an empty `items` document.
 - Decimal arithmetic must not pass through floating-point calculations.
 
 ## 10. Glue workflow
@@ -305,19 +315,13 @@ Collection: `orders`
 9. `replaceDocument=true` and deterministic `_id` values are used for rerun behavior.
 10. The second run must prove that target count does not increase and documents are replaced or updated as designed.
 
+The supported full-snapshot contract is an initial snapshot plus unchanged-source reruns. `replaceDocument=true` replaces a document that the job emits again, but it does not delete an already-emitted target document when that source order later becomes soft-deleted and is therefore no longer emitted. Changed-source deletion convergence is outside `GLUE-040`; `GLUE-050` must detect the stale target and define the explicit user-run resolution. This version must not add a destructive pre-load or CDC path.
+
 If the actual Glue connector behavior contradicts the documented rerun expectation, record the observed evidence and request a design decision. Do not silently add a third-party connector or destructive pre-load operation.
 
 ## 11. Observability
 
-Enable continuous Glue logging. Log only:
-
-- Glue job run ID;
-- source table counts;
-- valid and rejected counts;
-- transformed document count;
-- target collection name;
-- duration by phase;
-- reconciliation outcome.
+Enable continuous Glue logging. The entrypoint logs only source row counts, transformed document count, bounded phase durations, and phase/job outcome. Reconciliation logging remains `GLUE-050` work.
 
 Never log connection strings with credentials, secret values, environment contents, or full source/target records.
 
@@ -328,13 +332,15 @@ Required reconciliation:
 - active source order count equals target document count;
 - active source item count equals the sum of embedded array sizes;
 - every active order key exists in MongoDB;
-- every MongoDB document corresponds to one active source order;
+- after the initial snapshot and unchanged-source reruns, every MongoDB document corresponds to one active source order;
 - per-order item count matches;
 - per-order total matches exact decimal source calculation;
 - item order is ascending by `lineNumber`;
 - normalization rules match expected fixtures;
 - no soft-deleted order or item appears;
 - second Glue run leaves target count unchanged.
+
+`GLUE-050` must also exercise active-on-run-1/deleted-on-run-2 and detect the resulting stale target document. Detection and explicit resolution are required there; upsert-only `GLUE-040` does not claim changed-source deletion convergence.
 
 The validation command exits nonzero on any mismatch and writes a redacted summary artifact.
 

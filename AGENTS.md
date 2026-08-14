@@ -26,6 +26,16 @@ The design is authoritative. Do not reinterpret or expand it silently.
 - Do not add multi-environment configuration, remote Terraform state, release automation, deployment pipelines, base-image pipelines, autoscaling, high availability, custom dashboards, policy-as-code frameworks, or reusable enterprise module hierarchies.
 - Record a design question as a blocker; do not resolve it through an undocumented architectural change.
 
+## AWS execution ownership
+
+- AWS execution is **user-run only** after the user clones a completed, reviewed repository.
+- Hermes, Codex, and all development agents must never request, obtain, accept, or use AWS credentials.
+- Agents must never make AWS calls; run live Terraform plan/apply/destroy; test Glue connections; start crawlers or jobs; use SSM or Secrets Manager; create resources; or validate live teardown.
+- Every AWS command in this repository must be labeled `USER-RUN ONLY` or **User-run only**.
+- Development acceptance is complete with credential-free static validation, mocked service-boundary tests, Terraform formatting/validation/mock-provider tests, Python unit tests, and local container tests.
+- No agent-run live AWS evidence is required. Preserve copyable user instructions, but never claim those commands passed unless the user supplies redacted results.
+- A failure found during a later user-run lab is new work: open a separate issue/PR rather than reopening or holding development acceptance.
+
 ## Git and pull requests
 
 - Never push directly to `main`.
@@ -101,7 +111,7 @@ All examples must use synthetic data. Logs and test fixtures must be safe for a 
 
 ## Required checks before PR handoff
 
-Run all checks relevant to changed files:
+Agents run all credential-free checks relevant to changed files:
 
 ```bash
 make format-check
@@ -109,19 +119,8 @@ make lint
 make unit-test
 make compose-check
 make terraform-check
+bash -n scripts/*.sh
+git diff --check
 ```
 
-For AWS integration PRs, also provide the applicable evidence from:
-
-```bash
-make doctor
-make deploy
-make crawl
-make run
-make validate
-make rerun-test
-make cost-check
-make destroy-lab
-```
-
-Do not claim a command passed unless its output was observed in the current branch.
+`make doctor`, `make infra-plan`, `make infra-apply`, `make secrets-put`, `make ec2-bootstrap`, `make deploy`, `make crawl`, `make run`, `make validate`, `make rerun-test`, `make cost-check`, `make destroy-plan`, and `make destroy-lab` are **USER-RUN ONLY**. They are not development acceptance gates and agents must not execute them. Record user-supplied results separately as user-run lab evidence. Do not claim a command passed unless its output was actually observed, and never fabricate live evidence.
