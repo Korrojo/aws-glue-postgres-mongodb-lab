@@ -71,4 +71,4 @@ You will need a personal AWS account, GitHub access, a Mac terminal, Git, AWS CL
 
 ## Current status
 
-`GLUE-000` and `GLUE-010` are complete in [PR #1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) and [PR #2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2). `GLUE-020` — the disposable AWS foundation and EC2 workflow — is **IN PROGRESS**. Glue resources, transformation, reconciliation, and destruction automation belong to later roadmap tasks. See the [roadmap](docs/project/ROADMAP.md) for task ownership and status.
+`GLUE-000` and `GLUE-010` are complete in [PR #1](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/1) and [PR #2](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/2). `GLUE-020` — the disposable AWS foundation and EC2 workflow — is **PR OPEN** in [PR #3](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/3). Glue resources, transformation, reconciliation, and destruction automation belong to later roadmap tasks. See the [roadmap](docs/project/ROADMAP.md) for task ownership and status.
