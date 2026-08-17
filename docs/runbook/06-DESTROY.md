@@ -1,11 +1,22 @@
 # 06 — Destroy the Lab
 
-Owner: `GLUE-025` reviewed-plan safety plus `GLUE-060` final inventory/cleanup proof
+Owner: `GLUE-025` reviewed-plan safety plus `GLUE-060`; usability correction by `GLUE-110`
 Status: implementation complete
 
 > **User-run only:** Agents never request or use AWS credentials and never execute this flow. The user runs it only from the completed reviewed clone. Credential-free fake-boundary tests establish development acceptance; live output is optional user evidence and must be redacted.
 
 Stopping EC2 is not cleanup. Interface endpoints, S3, Secrets Manager, Glue, IAM, networking, and storage remain until the exact reviewed Terraform destroy plan removes them.
+
+Safe cleanup has four separate controls:
+
+| Control | Why it exists |
+|---|---|
+| Expected-resource inventory | Confirms the fixed lab categories are visible before anything is removed; it is not a price quote |
+| Saved destroy plan | The plan is the exact saved instruction set Terraform may apply; review it before approval |
+| Private identity metadata | Binds that plan to this repository, state, resource set, personal identity, Region, Git revision, and plan-file hash |
+| Post-destroy verification | Performs read-only exact-tag/name checks after Terraform state is empty so a known billable resource is not silently left behind |
+
+Planning does not destroy anything. Applying the reviewed plan is irreversible, and changing the checkout, state, identity, resource set, Region, or plan bytes invalidates the approval.
 
 > [!CAUTION]
 > Destruction has no database-volume recovery path. Use only the intended personal account in `us-east-1`. Never publish account IDs, principal ARNs, instance IDs, bucket names, public IPs, secret values, credentialed URIs, Terraform state, plans, or private plan metadata.
@@ -243,7 +254,17 @@ Pass: every command exits `0` and final counts remain zero. The standalone verif
 
 **Repeat, reset, or rollback**
 
-A successful destroy cannot be repeated with the consumed plan. If Terraform partially fails and state retains addresses, create/review a new smaller destroy plan. If state is empty but final inventory is temporarily nonzero, wait briefly and repeat only the standalone read-only verifier with the two shell-memory bindings. There is no database rollback.
+A successful destroy cannot be repeated with the consumed plan. If Terraform partially fails and state retains addresses, create/review a new smaller destroy plan. If state is empty but final inventory is temporarily nonzero, make one bounded retry after 30 seconds using only the standalone read-only verifier and the two shell-memory bindings:
+
+```bash
+sleep 30
+APPROVE_LAB_DESTROY_VERIFY=1 \
+EXPECTED_AWS_ACCOUNT="$EXPECTED_AWS_ACCOUNT" \
+EXPECTED_ARTIFACT_BUCKET="$EXPECTED_ARTIFACT_BUCKET" \
+AWS_PROFILE="$AWS_PROFILE" AWS_REGION="$AWS_REGION" ./scripts/verify-destroyed.sh
+```
+
+Pass: all category counts are zero. If the retry still reports a known remainder, stop and use the exact troubleshooting entry; do not loop or delete broadly. There is no database rollback.
 
 **If it fails**
 

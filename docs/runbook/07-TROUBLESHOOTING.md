@@ -1,11 +1,13 @@
 # 07 — Troubleshooting and Optional EC2 Write Path
 
-Owner: `GLUE-060` final review
+Owner: `GLUE-060` final review; usability correction by `GLUE-110`
 Status: implementation complete
 
 > **User-run only:** AWS, SSM, Glue, database, and GitHub operations below are performed only by the user from a completed reviewed clone. Agents never request or use AWS credentials. Keep diagnostics local and redact account IDs, ARNs, resource IDs, bucket names, endpoints, addresses, full records, and secret values.
 
 Preserve the version-1 design while diagnosing. Never add a NAT Gateway, public database ingress, SSH bastion, alternate ETL engine/connector, destructive preload, CDC, or broad cleanup.
+
+Start with Step 1, then choose the focused entry that matches the failed runbook step or error text. A **Diagnose** command reads state; a **Fix** changes only the named prerequisite; **Retry** repeats the original guarded operation; and **Reset impact** states whether data or infrastructure can change. Do not run every entry as a general repair checklist.
 
 ## Step 1 — Run bounded first-line diagnostics
 
@@ -24,11 +26,19 @@ The original clean checkout and local Terraform state remain available. The user
 **Inputs**
 
 ```bash
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_SECURITY_TOKEN
+unset AWS_WEB_IDENTITY_TOKEN_FILE AWS_ROLE_ARN AWS_ROLE_SESSION_NAME
+unset AWS_CONTAINER_CREDENTIALS_RELATIVE_URI AWS_CONTAINER_CREDENTIALS_FULL_URI
+unset AWS_CONTAINER_AUTHORIZATION_TOKEN AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
+unset AWS_ENDPOINT_URL
+unset TF_WORKSPACE TF_DATA_DIR TF_CLI_ARGS
+unset TF_CLI_ARGS_plan TF_CLI_ARGS_apply TF_CLI_ARGS_destroy TF_CLI_ARGS_state
 export AWS_PROFILE="personal-glue-lab"
 export AWS_REGION="us-east-1"
+export AWS_DEFAULT_REGION="$AWS_REGION"
 ```
 
-Unset ambient credentials, every `AWS_ENDPOINT_URL*`, and Terraform overrides as shown in runbooks 05–06.
+If `env | grep -E '^(AWS_ENDPOINT_URL_|TF_CLI_ARGS_)'` prints another override name, unset that exact variable and repeat the search until it prints nothing. This makes the troubleshooting preflight standalone instead of relying on a previous shell or runbook.
 
 **Command — User-run only**
 
@@ -129,7 +139,16 @@ Return to the numbered runbook step that failed. The optional GitHub workflow at
 
 - **Step:** crawler, Glue job, reconciliation.
 - **Likely cause:** secret/container volume mismatch, unhealthy source, or Glue security-group path.
-- **Diagnose — User-run only:** run the runbook 02 source assertion through the implemented bootstrap, then `aws glue get-connection --name aws-glue-postgres-mongodb-lab-postgres --hide-password --profile "$AWS_PROFILE" --region "$AWS_REGION" --query 'Connection.ConnectionType' --output text`.
+- **Diagnose — User-run only:** run the runbook 02 source assertion through the implemented bootstrap, then resolve the Terraform-owned name and inspect only its type:
+
+  ```bash
+  POSTGRES_CONNECTION="$(terraform -chdir=infrastructure/terraform output -raw postgres_glue_connection_name)"
+  aws glue get-connection --name "$POSTGRES_CONNECTION" --hide-password \
+    --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --query 'Connection.ConnectionType' --output text
+  unset POSTGRES_CONNECTION
+  ```
+
 - **Expected diagnostic result:** source assertions pass and type is `JDBC`.
 - **Fix:** correct secret rotation through exact reset or restore the reviewed security-group reference; never expose port 5432 publicly.
 - **Retry:** repeat `make crawl`, `make run`, or approved `make validate`.
@@ -139,7 +158,16 @@ Return to the numbered runbook step that failed. The optional GitHub workflow at
 
 - **Step:** Glue write, reconciliation, or rerun proof.
 - **Likely cause:** connector secret differs from initialized user, target unhealthy, or port-27017 security path broken.
-- **Diagnose — User-run only:** `aws glue get-connection --name aws-glue-postgres-mongodb-lab-mongodb --hide-password --profile "$AWS_PROFILE" --region "$AWS_REGION" --query 'Connection.ConnectionType' --output text`.
+- **Diagnose — User-run only:** resolve the Terraform-owned name and inspect only its type:
+
+  ```bash
+  MONGODB_CONNECTION="$(terraform -chdir=infrastructure/terraform output -raw mongodb_glue_connection_name)"
+  aws glue get-connection --name "$MONGODB_CONNECTION" --hide-password \
+    --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --query 'Connection.ConnectionType' --output text
+  unset MONGODB_CONNECTION
+  ```
+
 - **Expected diagnostic result:** `MONGODB`; runbook 02 container checks pass.
 - **Fix:** use exact secret-rotation reset or restore reviewed security-group references; never use root credentials for Glue or public ingress.
 - **Retry:** repeat the failed job/validation target.
@@ -149,7 +177,16 @@ Return to the numbered runbook step that failed. The optional GitHub workflow at
 
 - **Step:** crawler/job start.
 - **Likely cause:** Glue self-reference, subnet, endpoint route, or EC2 database-host rule differs from Terraform.
-- **Diagnose — User-run only:** `aws glue get-job --job-name aws-glue-postgres-mongodb-lab-orders-to-mongodb --profile "$AWS_PROFILE" --region "$AWS_REGION" --query 'Job.Connections.Connections' --output json`.
+- **Diagnose — User-run only:** resolve the Terraform-owned job name and inspect its connection list:
+
+  ```bash
+  JOB_NAME="$(terraform -chdir=infrastructure/terraform output -raw glue_job_name)"
+  aws glue get-job --job-name "$JOB_NAME" \
+    --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --query 'Job.Connections.Connections' --output json
+  unset JOB_NAME
+  ```
+
 - **Expected diagnostic result:** exactly the two lab connection names; Terraform static/mock checks remain green.
 - **Fix:** return configuration to reviewed Terraform; do not add NAT/public ingress.
 - **Retry:** create/review/apply a normal Terraform plan, then repeat the crawler/job.
@@ -169,7 +206,17 @@ Return to the numbered runbook step that failed. The optional GitHub workflow at
 
 - **Step:** runbook 03.
 - **Likely cause:** JDBC path/auth failure or stale/unexpected table schema.
-- **Diagnose — User-run only:** `aws glue get-crawler --name aws-glue-postgres-mongodb-lab-orders --profile "$AWS_PROFILE" --region "$AWS_REGION" --query 'Crawler.{State:State,Status:LastCrawl.Status,Error:LastCrawl.ErrorMessage}' --output json`.
+- **Diagnose — User-run only:** resolve the Terraform-owned crawler name and inspect its bounded status/error fields:
+
+  ```bash
+  CRAWLER="$(terraform -chdir=infrastructure/terraform output -raw glue_crawler_name)"
+  aws glue get-crawler --name "$CRAWLER" \
+    --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --query 'Crawler.{State:State,Status:LastCrawl.Status,Error:LastCrawl.ErrorMessage}' \
+    --output json
+  unset CRAWLER
+  ```
+
 - **Expected diagnostic result:** state `READY`, status `SUCCEEDED`, no error; guarded crawler assertion sees only `orders` and `order_items`.
 - **Fix:** correct source/connectivity, then rerun the unscheduled crawler. Do not create another crawler.
 - **Retry:** `APPROVE_GLUE_CRAWL=1 make crawl`.
@@ -211,7 +258,19 @@ Return to the numbered runbook step that failed. The optional GitHub workflow at
 - **Likely cause:** Terraform reported a specific residual object/dependency or partial apply.
 - **Diagnose:** `terraform -chdir=infrastructure/terraform state list` plus the exact Terraform error; do not print state content.
 - **Expected diagnostic result:** only known residual addresses or empty state with a known-service category count.
-- **Fix:** if state remains, create and review a fresh smaller destroy plan. If state is empty, rerun only `scripts/verify-destroyed.sh` with the shell-memory account/bucket bindings. A real out-of-state remainder needs separately reviewed exact handling.
+- **Fix:** if state remains, create and review a fresh smaller destroy plan. If state is empty and the runbook 06 shell still holds both destroy-bound values, make one bounded read-only retry:
+
+  ```bash
+  test -n "$EXPECTED_AWS_ACCOUNT"
+  test -n "$EXPECTED_ARTIFACT_BUCKET"
+  sleep 30
+  APPROVE_LAB_DESTROY_VERIFY=1 \
+  EXPECTED_AWS_ACCOUNT="$EXPECTED_AWS_ACCOUNT" \
+  EXPECTED_ARTIFACT_BUCKET="$EXPECTED_ARTIFACT_BUCKET" \
+  AWS_PROFILE="$AWS_PROFILE" AWS_REGION="$AWS_REGION" ./scripts/verify-destroyed.sh
+  ```
+
+  Pass: all category counts are zero and `post-destroy known-service verification: PASS` prints. If a count remains, stop. A real out-of-state remainder needs separately reviewed exact handling.
 - **Retry:** new `make destroy-plan`/approved `make destroy-lab`, or the standalone read-only verifier.
 - **Reset impact:** destruction only for exact reviewed state; no broad service cleanup.
 
@@ -231,7 +290,7 @@ Create a repository-specific Ed25519 deploy-key pair on EC2 while keeping the pr
 
 **Prerequisites**
 
-Runbook 02 completed, the session runs as `ec2-user`, and the repository exists at `/opt/aws-glue-postgres-mongodb-lab`.
+Runbook 02 completed, the Session Manager shell can use `sudo -u ec2-user`, and the repository exists at `/opt/aws-glue-postgres-mongodb-lab`. The normal interactive SSM shell may be `ssm-user`; the commands below deliberately create and use the key as `ec2-user`.
 
 **Inputs**
 
@@ -240,7 +299,8 @@ None; the script uses the fixed repository/key directory.
 **Command — User-run only**
 
 ```bash
-/opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh
+sudo -u ec2-user -H \
+  /opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh
 ```
 
 **Expected result**
@@ -250,7 +310,8 @@ Only the public key is printed. The private key remains mode `0600` under `~/.ss
 **Verify**
 
 ```bash
-test "$(stat -c '%a' "$HOME/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519")" = 600
+test "$(sudo -u ec2-user stat -c '%a' \
+  /home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519)" = 600
 ```
 
 Pass: the test exits `0`; do not display the private file.
@@ -295,7 +356,12 @@ One enabled write deploy key appears for this repository. No GitHub token or pri
 
 **Verify — User-run only**
 
-Confirm the key fingerprint in GitHub matches `ssh-keygen -lf "$HOME/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519.pub"` from EC2.
+Confirm the key fingerprint in GitHub matches this EC2 command:
+
+```bash
+sudo -u ec2-user ssh-keygen -lf \
+  /home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519.pub
+```
 
 Pass: fingerprints match and only the public key crossed the session boundary.
 
@@ -329,18 +395,22 @@ Step 3 completed and the EC2 checkout is clean.
 
 ```bash
 export FEATURE_BRANCH="feature/ec2-lab-notes"
-test "$FEATURE_BRANCH" != main
+test -n "$FEATURE_BRANCH"
+case "$FEATURE_BRANCH" in main|master) false ;; esac
+git check-ref-format --branch "$FEATURE_BRANCH" >/dev/null
 ```
 
-Choose a new non-`main` branch name.
+Choose a new non-`main`/non-`master` branch name. Pass: every input check exits `0`; an empty, default-branch, or invalid Git name stops here before remote configuration.
 
 **Command — User-run only**
 
 ```bash
-CONFIGURE_REMOTE=1 /opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh
-cd /opt/aws-glue-postgres-mongodb-lab
-git switch -c "$FEATURE_BRANCH"
-git push --set-upstream origin "$FEATURE_BRANCH"
+sudo -u ec2-user -H env CONFIGURE_REMOTE=1 \
+  /opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh
+sudo -u ec2-user git -C /opt/aws-glue-postgres-mongodb-lab \
+  switch -c "$FEATURE_BRANCH"
+sudo -u ec2-user git -C /opt/aws-glue-postgres-mongodb-lab \
+  push --set-upstream origin "$FEATURE_BRANCH"
 ```
 
 **Expected result**
@@ -350,9 +420,11 @@ The script obtains GitHub host keys from `https://api.github.com/meta`, configur
 **Verify — User-run only**
 
 ```bash
-git remote get-url origin
-git branch --show-current
-git ls-remote --exit-code --heads origin "$FEATURE_BRANCH" >/dev/null
+sudo -u ec2-user git -C /opt/aws-glue-postgres-mongodb-lab remote get-url origin
+test "$(sudo -u ec2-user git -C /opt/aws-glue-postgres-mongodb-lab \
+  branch --show-current)" = "$FEATURE_BRANCH"
+sudo -u ec2-user git -C /opt/aws-glue-postgres-mongodb-lab \
+  ls-remote --exit-code --heads origin "$FEATURE_BRANCH" >/dev/null
 ```
 
 Pass: origin is `git@github.com:Korrojo/aws-glue-postgres-mongodb-lab.git`, current branch equals the feature branch, and the remote head exists.
