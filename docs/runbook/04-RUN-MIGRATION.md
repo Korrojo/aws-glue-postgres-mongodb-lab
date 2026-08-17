@@ -1,6 +1,6 @@
 # 04 — Run the Snapshot Migration
 
-Owner: `GLUE-040`  
+Owner: `GLUE-040`; usability correction by `GLUE-100`
 Status: implementation complete
 
 > **User-run only:** Every AWS, SSM, Glue, and MongoDB command in this runbook is run by the user after cloning completed reviewed code. Agents must never request or use AWS credentials. No agent-run live AWS evidence is required; development acceptance uses static/mock/Terraform/unit/container checks. A failure in this user-run lab becomes a separate issue/PR.
@@ -10,6 +10,10 @@ The Glue 5.1 job reads `orders` and `order_items` from the Data Catalog, validat
 For order `1001`, `_id` is deterministically `1001`; customer name/email/status are trimmed and normalized; timestamps are formatted in UTC; active items are sorted by `lineNumber`; and `lineTotal`/`orderTotal` remain Spark decimals. Soft-deleted orders/items are omitted. An active order with zero active items fails validation deterministically instead of emitting an empty document.
 
 The supported contract is the initial snapshot and unchanged-source reruns. `replaceDocument=true` does not delete an already-emitted target document when its source order is later soft-deleted. Changed-source deletion convergence is outside `GLUE-040`; `GLUE-050` must detect and explicitly resolve that stale target without adding destructive pre-load or CDC here.
+
+### From relational rows to nested documents
+
+The job follows one explicit path: the Glue catalog tells Spark how to read the two PostgreSQL tables, validation rejects unsafe source relationships, transformation groups each order with its active items, and the named Glue connection writes the resulting nested documents to MongoDB. A deterministic order `_id` makes an unchanged-source rerun replace the same document instead of creating a duplicate. This is a bounded snapshot workflow, not continuous change-data capture.
 
 ## Step 1 — Confirm migration prerequisites
 
@@ -28,6 +32,7 @@ Require the reviewed artifacts, exact catalog, healthy database containers, and 
 - `make crawl` passed the exact two-table assertion.
 - PostgreSQL and MongoDB are healthy on EC2.
 - Terraform state contains `glue_job_name`, `mongodb_glue_connection_name`, and `database_instance_id` outputs.
+- The repository-local `.venv` created in runbook 00 is present.
 
 **Inputs**
 
@@ -54,10 +59,18 @@ The command exits 0 and prints `migration prerequisites: PASS` without exposing 
 **Verify**
 
 ```bash
-make format-check && make lint && make unit-test && make terraform-check
+(
+set -euo pipefail
+test -x .venv/bin/ruff
+test -x .venv/bin/pytest
+make format-check RUFF=.venv/bin/ruff
+make lint RUFF=.venv/bin/ruff
+make unit-test PYTEST=.venv/bin/pytest
+make terraform-check
+)
 ```
 
-Pass: all credential-free checks exit 0. These are development-safe checks and make no AWS call. They do not claim the user-run migration succeeded.
+Pass: all credential-free checks exit 0 using the reviewed repository environment. These checks make no AWS call and do not claim the user-run migration succeeded.
 
 **Repeat, reset, or rollback**
 
@@ -124,7 +137,12 @@ The job supports an initial full snapshot and unchanged-source reruns. Determini
 - Validation error mentioning null/duplicate key, duplicate business key, orphan, quantity, price, or empty items: correct only the synthetic source fixture in a separate issue/PR; do not bypass validation.
 - MongoDB authentication/network failure: confirm runbook 02 secret/reset state and Terraform security-group references; do not add public ingress.
 - Serialization/type failure: preserve the redacted exception and open a separate issue/PR.
-- The waiter always prints the failure-log pointer `aws logs tail /aws-glue/jobs/error --since 1h --follow`; run it only with the user profile and do not publish secrets or full records.
+- The waiter prints a failure-log pointer. Run this bounded diagnostic with the user profile, then preserve only the useful redacted error text; do not publish secrets or full records:
+
+  ```bash
+  aws logs tail /aws-glue/jobs/error --since 1h \
+    --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  ```
 
 **Next**
 
@@ -153,6 +171,7 @@ Uses the same personal profile and Region.
 ```bash
 INSTANCE_ID="$(terraform -chdir=infrastructure/terraform output -raw database_instance_id)"
 aws ssm start-session --target "$INSTANCE_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+unset INSTANCE_ID
 ```
 
 **Expected result**
@@ -162,10 +181,11 @@ An interactive Session Manager shell opens on the one lab EC2 host. No inbound p
 **Verify — User-run only**
 
 ```bash
-pwd
+test -d /opt/aws-glue-postgres-mongodb-lab && \
+  printf '%s\n' 'database-host session: PASS'
 ```
 
-Pass: the command runs inside the Session Manager shell. The exact starting directory may vary.
+Pass: `database-host session: PASS` prints, proving the shell is on the provisioned lab host rather than merely proving that a shell is open. The exact starting directory may vary.
 
 **Repeat, reset, or rollback**
 
@@ -210,8 +230,8 @@ trap cleanup_mongo_secret_vars EXIT
 SECRET_JSON="$(aws secretsmanager get-secret-value \
   --secret-id /aws-glue-postgres-mongodb-lab/mongodb-glue \
   --region us-east-1 --query SecretString --output text)"
-MONGO_USER="$(jq -r .username <<<"$SECRET_JSON")"
-MONGO_PASSWORD="$(jq -r .password <<<"$SECRET_JSON")"
+MONGO_USER="$(jq -er '.username | select(type == "string" and length > 0)' <<<"$SECRET_JSON")"
+MONGO_PASSWORD="$(jq -er '.password | select(type == "string" and length > 0)' <<<"$SECRET_JSON")"
 AUTH_JSON="$(jq -cn --arg username "$MONGO_USER" --arg password "$MONGO_PASSWORD" \
   '{user:$username,pwd:$password}')"
 unset SECRET_JSON
@@ -237,22 +257,21 @@ print(JSON.stringify({count: count, sample: sample}));
 MONGOSH
 } | docker exec -i "$MONGO_CONTAINER" mongosh --quiet migration_lab
 cleanup_mongo_secret_vars
+test -z "${SECRET_JSON:-}" && test -z "${MONGO_USER:-}" && \
+  test -z "${MONGO_PASSWORD:-}" && test -z "${AUTH_JSON:-}" && \
+  test -z "${MONGO_CONTAINER:-}" && \
+  printf '%s\n' 'temporary secret variables removed: PASS'
 trap - EXIT
 )
 ```
 
 **Expected result**
 
-One redacted JSON object prints. `count` is greater than zero. The sample for `_id: 1001` has lowercase trimmed email, uppercase status, ascending line numbers, exact decimal totals, and migration mode `snapshot`. No password or complete source/target record is printed.
+One redacted JSON object prints, followed by `temporary secret variables removed: PASS`. `count` is greater than zero. The sample for `_id: 1001` has lowercase trimmed email, uppercase status, ascending line numbers, exact decimal totals, and migration mode `snapshot`. No password or complete source/target record is printed.
 
 **Verify — User-run only**
 
-```bash
-test -z "${MONGO_PASSWORD:-}" && test -z "${MONGO_USER:-}" && \
-  test -z "${AUTH_JSON:-}" && printf '%s\n' 'temporary secret variables removed: PASS'
-```
-
-Pass: `temporary secret variables removed: PASS` prints. Type `exit` to close the SSM session.
+The cleanup assertion runs inside the same subshell that temporarily held the secret values. Pass: `temporary secret variables removed: PASS` prints after the redacted MongoDB summary. Type `exit` to close the SSM session.
 
 **Repeat, reset, or rollback**
 
@@ -267,4 +286,4 @@ Read-only and safe to repeat. Do not write, delete, or repair target documents f
 
 **Next**
 
-Continue to [05 — Validate and rerun](05-VALIDATE-AND-RERUN.md). That roadmap task remains not started, so its operational targets still fail clearly until implemented.
+Continue to [05 — Validate and rerun](05-VALIDATE-AND-RERUN.md).
