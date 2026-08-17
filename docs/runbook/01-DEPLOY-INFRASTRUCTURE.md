@@ -1,6 +1,6 @@
 # 01 — Deploy AWS Infrastructure
 
-Owner: `GLUE-020`; corrected by `GLUE-025`
+Owner: `GLUE-020`; corrected by `GLUE-025` and `GLUE-090`
 Status: implemented by `GLUE-020`
 
 > **User-run only:** Agents must never request or use AWS credentials or execute these AWS/Terraform commands. No agent-run live AWS evidence is required; development uses static/mock/Terraform/unit/container checks. A later user-run failure belongs in a separate issue/PR.
@@ -35,7 +35,7 @@ Prove which reviewed code and personal AWS identity will create the lab.
 
 **Run from**
 
-`Mac terminal — repository root`
+`Mac Mini terminal — repository root`
 
 **Prerequisites**
 
@@ -102,7 +102,7 @@ Understand the plan before Terraform contacts AWS.
 
 **Run from**
 
-`Mac terminal — repository root`
+`Mac Mini terminal — repository root`
 
 **Prerequisites**
 
@@ -164,7 +164,7 @@ Install the locked providers and prepare local state without adding a remote bac
 
 **Run from**
 
-`Mac terminal — repository root`
+`Mac Mini terminal — repository root`
 
 **Prerequisites**
 
@@ -214,7 +214,7 @@ Review intended mutations before creating any AWS resource.
 
 **Run from**
 
-`Mac terminal — repository root`
+`Mac Mini terminal — repository root`
 
 **Prerequisites**
 
@@ -281,7 +281,7 @@ Create exactly the plan reviewed in Step 4.
 
 **Run from**
 
-`Mac terminal — repository root`
+`Mac Mini terminal — repository root`
 
 **Prerequisites**
 
@@ -330,7 +330,7 @@ Prove that the foundation exists, is tagged, and exposes no inbound SSH/database
 
 **Run from**
 
-`Mac terminal — repository root`
+`Mac Mini terminal — repository root`
 
 **Prerequisites**
 
@@ -402,7 +402,7 @@ Create fresh random credentials outside Terraform and store them without printin
 
 **Run from**
 
-`Mac terminal — repository root`
+`Mac Mini terminal — repository root`
 
 **Prerequisites**
 
@@ -458,7 +458,7 @@ Retrieve secrets on EC2, write a temporary mode-`0600` `.env`, start both pinned
 
 **Run from**
 
-`Mac terminal — repository root`; the command executes `scripts/bootstrap-ec2.sh` remotely as `ec2-user`.
+`Mac Mini terminal — repository root`; the command executes `scripts/bootstrap-ec2.sh` remotely as `ec2-user`.
 
 **Prerequisites**
 
@@ -478,7 +478,7 @@ make ec2-bootstrap
 
 **Expected result**
 
-The SSM command succeeds. On EC2 it:
+The Mac command waits for the bounded SSM operation and prints its final invocation JSON before the local pass line. On EC2 the operation:
 
 1. fast-forwards the current public branch;
 2. retrieves all three secrets using the instance role without printing them;
@@ -490,15 +490,7 @@ The SSM command succeeds. On EC2 it:
 
 **Verify**
 
-```bash
-instance_id="$(terraform -chdir=infrastructure/terraform output -raw database_instance_id)"
-command_id="<command_id printed by make ec2-bootstrap>"
-aws ssm get-command-invocation --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-  --command-id "$command_id" --instance-id "$instance_id" \
-  --query '{Status:Status,Output:StandardOutputContent}' --output json
-```
-
-The status must be `Success`. The output includes `git_sha=...`, `temporary environment cleanup: PASS`, the deterministic data assertions, and the final bootstrap pass line. Do not publish the instance ID or container endpoints.
+Pass: the final invocation JSON has `Status` equal to `Success`, an empty `Error`, and `Output` containing `git_sha=...`, `temporary environment cleanup: PASS`, the deterministic data assertions, and `aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS`. The next line is the local `SSM bootstrap: PASS` message with its command ID. Do not publish the command ID, instance ID, or container endpoints.
 
 **Repeat, reset, or rollback**
 
@@ -506,10 +498,10 @@ Safe to rerun against unchanged secret values and code. After `APPROVE_LAB_SECRE
 
 **If it fails**
 
-- Inspect the SSM invocation output, then `/var/log/aws-glue-lab-bootstrap.log`.
-- If Docker access is denied, confirm the command runs as `ec2-user` after user data added that account to the Docker group.
-- If secret retrieval fails, verify the EC2 role is attached and the secret names are exact.
-- If a container fails health checks, continue with [02 — Start Databases](02-START-DATABASES.md) troubleshooting.
+- Symptom: the final JSON has a failed status or a nonempty `Error`. Diagnose with the printed `Output` and `Error`; the wrapper retrieves them before exiting.
+- Docker access denied: confirm the remote command identifies itself as `ec2-user`; correct the user-data/Docker-group setup, then rerun `make ec2-bootstrap`.
+- Secret retrieval denied or missing: use Step 7's metadata-only checks, correct the EC2 role or missing secret value, then rerun `make ec2-bootstrap` without displaying a value.
+- Container health failure: use the focused manual path in [02 — Start Databases](02-START-DATABASES.md), then rerun `make ec2-bootstrap`.
 
 **Next**
 
@@ -523,7 +515,7 @@ Allow deliberate feature-branch pushes from EC2 without copying the private key 
 
 **Run from**
 
-`Mac terminal using SSM; key generation runs as ec2-user on EC2`
+`Mac Mini terminal — repository root`; each AWS CLI command runs the named script remotely as `ec2-user` through SSM.
 
 **Prerequisites**
 
@@ -537,21 +529,43 @@ No key material from the Mac.
 
 **Command**
 
-Send the key-generation script through SSM:
+Run this complete block. It sends the key-generation script, waits for completion, and retrieves the public-key output. The final read still runs when the waiter reports a remote failure so the error is visible.
 
 ```bash
 instance_id="$(terraform -chdir=infrastructure/terraform output -raw database_instance_id)"
-aws ssm send-command --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-  --instance-ids "$instance_id" --document-name AWS-RunShellScript \
-  --parameters 'commands=["sudo -u ec2-user /opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh"]'
+key_command_id="$(
+  aws ssm send-command --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --instance-ids "$instance_id" --document-name AWS-RunShellScript \
+    --parameters 'commands=["sudo -u ec2-user /opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh"]' \
+    --query 'Command.CommandId' --output text
+)"
+if ! aws ssm wait command-executed --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  --command-id "$key_command_id" --instance-id "$instance_id"; then
+  printf '%s\n' 'SSM did not report success; reading the final invocation output.'
+fi
+aws ssm get-command-invocation --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  --command-id "$key_command_id" --instance-id "$instance_id" \
+  --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' \
+  --output json
 ```
 
-Copy only the printed `ssh-ed25519 ...` public line into GitHub repository **Settings → Deploy keys**, enable write access, and label it for this disposable lab. Then configure the exact identity and trusted GitHub host keys with:
+Pass: `Status` is `Success`, `Error` is empty, and `Output` contains one `ssh-ed25519 ...` public line. Copy only that public line into GitHub repository **Settings → Deploy keys**, enable write access, and label it for this disposable lab. Then run this complete block to configure the exact identity and trusted GitHub host keys:
 
 ```bash
-aws ssm send-command --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-  --instance-ids "$instance_id" --document-name AWS-RunShellScript \
-  --parameters 'commands=["sudo -u ec2-user env CONFIGURE_REMOTE=1 /opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh"]'
+configure_command_id="$(
+  aws ssm send-command --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --instance-ids "$instance_id" --document-name AWS-RunShellScript \
+    --parameters 'commands=["sudo -u ec2-user env CONFIGURE_REMOTE=1 /opt/aws-glue-postgres-mongodb-lab/scripts/configure-ec2-github-write.sh"]' \
+    --query 'Command.CommandId' --output text
+)"
+if ! aws ssm wait command-executed --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  --command-id "$configure_command_id" --instance-id "$instance_id"; then
+  printf '%s\n' 'SSM did not report success; reading the final invocation output.'
+fi
+aws ssm get-command-invocation --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  --command-id "$configure_command_id" --instance-id "$instance_id" \
+  --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' \
+  --output json
 ```
 
 **Expected result**
@@ -560,14 +574,7 @@ The public key is visible once in the SSM invocation output. The private key rem
 
 **Verify**
 
-On EC2 through SSM:
-
-```bash
-sudo -u ec2-user test -f /home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519
-sudo -u ec2-user test "$(stat -c '%a' /home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/id_ed25519)" = 600
-sudo -u ec2-user git -C /opt/aws-glue-postgres-mongodb-lab config --get core.sshCommand
-sudo -u ec2-user ssh-keygen -F github.com -f /home/ec2-user/.ssh/aws-glue-postgres-mongodb-lab/known_hosts
-```
+Pass: the second invocation JSON has `Status` equal to `Success`, an empty `Error`, and `Output` ending with `Configured the aws-glue-postgres-mongodb-lab origin, deploy-key identity, and GitHub known_hosts for SSH.` The script reaches that line only after confirming the private key permissions, trusted host-key file, repository-local SSH identity, and SSH-form origin.
 
 **Repeat, reset, or rollback**
 
@@ -575,7 +582,7 @@ Generation is idempotent. At teardown, delete the GitHub deploy key and destroy 
 
 **If it fails**
 
-Confirm the command ran as `ec2-user` and `.ssh` permissions are correct. Do not replace this with a personal GitHub token in `.env`.
+Use the failed invocation's `Output` and `Error` fields to identify key permissions, GitHub metadata retrieval, or repository-remote failure. Correct only that condition and repeat the failed block. Do not replace this with a personal GitHub token in `.env`.
 
 **Next**
 
@@ -589,7 +596,7 @@ Prove the foundation is disposable and identify cleanup dependencies before late
 
 **Run from**
 
-`Mac terminal — repository root`
+`Mac Mini terminal — repository root`
 
 **Prerequisites**
 

@@ -43,6 +43,14 @@ command_id="$($aws_cli --profile "$AWS_PROFILE" --region "$aws_region" ssm send-
   --parameters "commands=[\"$remote_command\"]" \
   --query 'Command.CommandId' --output text)"
 
+show_invocation() {
+  "$aws_cli" --profile "$AWS_PROFILE" --region "$aws_region" \
+    ssm get-command-invocation \
+    --command-id "$command_id" --instance-id "$instance_id" \
+    --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' \
+    --output json
+}
+
 printf 'Waiting for scoped SSM command %s on %s...\n' "$command_id" "$instance_id"
 deadline=$((SECONDS + 900))
 status="Pending"
@@ -55,6 +63,10 @@ while ((SECONDS < deadline)); do
       break
       ;;
     Failed|Cancelled|Cancelling|TimedOut)
+      if ! show_invocation; then
+        printf 'WARNING: unable to retrieve final SSM invocation output for %s.\n' \
+          "$command_id" >&2
+      fi
       printf 'ERROR: SSM bootstrap status is %s. Inspect invocation %s.\n' \
         "$status" "$command_id" >&2
       exit 1
@@ -70,8 +82,16 @@ while ((SECONDS < deadline)); do
   esac
 done
 if [[ "$status" != "Success" ]]; then
+  if ! show_invocation; then
+    printf 'WARNING: unable to retrieve final SSM invocation output for %s.\n' \
+      "$command_id" >&2
+  fi
   printf 'ERROR: SSM bootstrap exceeded its 900-second deadline; inspect invocation %s.\n' \
     "$command_id" >&2
+  exit 1
+fi
+if ! show_invocation; then
+  printf 'ERROR: SSM command succeeded, but its final verification output could not be retrieved.\n' >&2
   exit 1
 fi
 printf 'aws-glue-postgres-mongodb-lab SSM bootstrap: PASS (command_id=%s)\n' "$command_id"
