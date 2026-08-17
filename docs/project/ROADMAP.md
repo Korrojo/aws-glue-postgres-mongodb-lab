@@ -10,7 +10,7 @@
 
 `DONE` means the reviewed implementation and credential-free development checks are complete. Live AWS execution is not a task status or agent acceptance gate; it is user-run only.
 
-Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`. `GLUE-070` was delivered in [PR #8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) and is now `DONE`.
+Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`. `GLUE-070` was delivered in [PR #8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) and is now `DONE`. `GLUE-080` is a documentation-only correction that standardizes the AWS CLI profile name across the ordered runbooks.
 
 ## Credential-free development acceptance
 
@@ -29,6 +29,7 @@ Agents must never request or use AWS credentials or execute any AWS command. Sta
 | `GLUE-050` | DONE | [#6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) | `GLUE-040` | Reconciliation and rerun validation |
 | `GLUE-060` | DONE | [#6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) | `GLUE-050` | Runbook, cleanup proof, final release |
 | `GLUE-070` | DONE | [#8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) | `GLUE-060` | First-time prerequisite onboarding and explanations |
+| `GLUE-080` | IN PROGRESS | TBD | `GLUE-070` | Consistent AWS CLI profile naming across runbooks |
 
 ## `GLUE-000` — Governance and repository skeleton
 
@@ -291,3 +292,23 @@ PR grouping: one corrective documentation PR
 - Optional tools do not become prerequisites for the core EC2 path.
 - Documentation/static checks pass without AWS credentials or AWS calls.
 - No infrastructure, application, or architecture file changes.
+
+## `GLUE-080` — Standardize AWS CLI profile naming
+
+Branch: `agent/hermes-codex/glue-080-profile-consistency`
+
+PR grouping: one corrective documentation PR
+
+### To-do
+
+- [x] Use `personal-glue-lab` as the canonical AWS CLI profile name in every ordered runbook.
+- [x] Replace the stale `personal-lab` exports in runbooks 03 and 04.
+- [x] Preserve all AWS commands as **User-run only** and make no AWS calls.
+- [x] Keep the correction limited to documentation and roadmap tracking.
+
+### Acceptance
+
+- Every file under `docs/runbook/` uses `personal-glue-lab` when naming the personal AWS CLI profile.
+- No ordered runbook contains the stale profile name `personal-lab`.
+- Documentation and governance checks pass without AWS credentials or AWS calls.
+- No infrastructure, application, script, test, or architecture file changes.

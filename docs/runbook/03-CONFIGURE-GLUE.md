@@ -33,7 +33,7 @@ Set the only user-supplied values and confirm the completed foundation/database 
 **Command**
 
 ```bash
-export AWS_PROFILE="personal-lab"
+export AWS_PROFILE="personal-glue-lab"
 export AWS_REGION="us-east-1"
 ```
 
