@@ -10,7 +10,7 @@
 
 `DONE` means the reviewed implementation and credential-free development checks are complete. Live AWS execution is not a task status or agent acceptance gate; it is user-run only.
 
-Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`.
+Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`. `GLUE-070` is a documentation-only correction prompted by first-time user feedback.
 
 ## Credential-free development acceptance
 
@@ -28,6 +28,7 @@ Agents must never request or use AWS credentials or execute any AWS command. Sta
 | `GLUE-040` | DONE | [#5](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/5) | `GLUE-030` | PySpark transformation and MongoDB load |
 | `GLUE-050` | DONE | [#6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) | `GLUE-040` | Reconciliation and rerun validation |
 | `GLUE-060` | DONE | [#6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) | `GLUE-050` | Runbook, cleanup proof, final release |
+| `GLUE-070` | IN PROGRESS | TBD | `GLUE-060` | First-time prerequisite onboarding and explanations |
 
 ## `GLUE-000` — Governance and repository skeleton
 
@@ -263,3 +264,30 @@ PR grouping: PR 6 with `GLUE-050`
 - Credential-free clean-checkout checks and command contracts pass.
 - User-run E2E, destroy, and post-destroy results are optional user-run release evidence, not requirements for `DONE`; when supplied, record them separately and redact them.
 - No credential or live endpoint is present in repository history or PR evidence.
+
+## `GLUE-070` — Improve prerequisite onboarding
+
+Branch: `agent/hermes-codex/glue-070-prerequisite-usability`
+
+PR grouping: one corrective documentation PR
+
+### To-do
+
+- [x] Explain the purpose of every Mac-side tool before installation.
+- [x] Add exact Homebrew installation, shell setup, and verification guidance.
+- [x] Explain GitHub's browser authentication prompts and credential storage.
+- [x] Distinguish an AWS CLI profile name, authentication credentials, Region settings, and shell environment variables.
+- [x] Document temporary browser authentication with `aws login`, including the personal root-user case, without requesting or storing credentials in the repository.
+- [x] Retain IAM Identity Center as a separate authentication path and discourage long-lived root access keys.
+- [x] Add exact optional Docker Desktop, Python 3.11, and Java 17 installation and first-launch instructions.
+- [x] Expand expected results, pass conditions, and diagnose/correct/retry guidance for the prerequisite steps.
+- [x] Keep all AWS commands labeled **User-run only** and preserve Docker as an optional local path.
+
+### Acceptance
+
+- A reader starting with a personal Mac and AWS Console login understands why each command is needed and what it changes.
+- Authentication guidance does not ask the reader to paste credentials into the repository or expose account identifiers.
+- Root Console authentication uses temporary `aws login` credentials; no root access-key creation is instructed.
+- Optional tools do not become prerequisites for the core EC2 path.
+- Documentation/static checks pass without AWS credentials or AWS calls.
+- No infrastructure, application, or architecture file changes.
