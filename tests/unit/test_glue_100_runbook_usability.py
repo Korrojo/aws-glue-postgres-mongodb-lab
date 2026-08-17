@@ -14,7 +14,7 @@ def test_roadmap_documents_the_remaining_bounded_plan() -> None:
     roadmap = (ROOT / "docs/project/ROADMAP.md").read_text()
 
     assert "| `GLUE-090` | DONE | [#12]" in roadmap
-    assert "| `GLUE-100` | IN PROGRESS |" in roadmap
+    assert "| `GLUE-100` | PR OPEN | [#13]" in roadmap
     assert "agent/hermes-codex/glue-100-runbook-03-04-usability" in roadmap
     assert "| `GLUE-110` | NOT STARTED |" in roadmap
     assert "agent/hermes-codex/glue-110-runbook-05-07-usability" in roadmap
