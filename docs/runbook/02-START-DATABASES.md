@@ -1,6 +1,6 @@
 # 02 — Start and Verify the Databases
 
-Owners: `GLUE-010`, finalized by `GLUE-020`; rotation correction by `GLUE-025`
+Owners: `GLUE-010`, finalized by `GLUE-020`; corrected by `GLUE-025` and `GLUE-090`
 Status: implemented by `GLUE-010` and `GLUE-020`
 
 > **User-run only:** Agents must never request or use AWS credentials or execute the AWS/SSM path. No agent-run live AWS evidence is required; development uses static/mock/Terraform/unit/container checks. A later user-run failure belongs in a separate issue/PR. The optional local Compose path remains agent-safe when explicitly needed.
@@ -15,7 +15,7 @@ Run the complete secret retrieval, startup, health, fixture, and commit-SHA chec
 
 **Run from**
 
-`Mac terminal — repository root`
+`Mac Mini terminal — repository root`
 
 **Prerequisites**
 
@@ -25,7 +25,13 @@ Run the complete secret retrieval, startup, health, fixture, and commit-SHA chec
 
 **Inputs**
 
-The personal `AWS_PROFILE` and `AWS_REGION=us-east-1`; no database credential is entered or printed.
+Use the canonical personal profile and required Region. No database credential is entered or printed.
+
+```bash
+export AWS_PROFILE="personal-glue-lab"
+export AWS_REGION="us-east-1"
+export AWS_DEFAULT_REGION="$AWS_REGION"
+```
 
 **Command**
 
@@ -35,11 +41,11 @@ make ec2-bootstrap
 
 **Expected result**
 
-The SSM invocation ends with `aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS`, both containers are healthy, deterministic counts pass, all invalid fixtures are rejected, `.lab-commit-sha` matches the EC2 checkout, and the temporary `.env` is absent.
+The command waits for the bounded SSM operation, prints the final invocation JSON, and then reports the local `SSM bootstrap: PASS`. The remote output shows both containers healthy, deterministic counts passing, all invalid fixtures rejected, the recorded Git SHA, and temporary `.env` cleanup.
 
 **Verify**
 
-Use the SSM invocation output and the read-only commands in runbook 01 Step 8. Do not publish the instance ID, private address, endpoints, or secret values.
+Pass: the final JSON has `Status` equal to `Success`, an empty `Error`, and `Output` containing `git_sha=...`, `temporary environment cleanup: PASS`, `local data assertions: PASS`, and `aws-glue-postgres-mongodb-lab EC2 bootstrap: PASS`. Do not publish the command ID, instance ID, private address, endpoints, or secret values.
 
 **Repeat, reset, or rollback**
 
@@ -47,11 +53,13 @@ The command is safe to rerun while secret values are unchanged. After `APPROVE_L
 
 **If it fails**
 
-Continue with the manual diagnostic steps below; they expose each prerequisite and command separately without changing the architecture.
+- Account/Region mismatch: rerun `make doctor`, correct the selected personal profile or Region, then retry `make ec2-bootstrap`.
+- Failed SSM status: inspect the final printed `Output` and `Error`, then use the manual diagnostic path below for the failing stage.
+- Timeout: confirm Systems Manager still reports the instance `Online`, then retry once. Continue manually if the second attempt fails.
 
 **Next**
 
-After success, retain the recorded Git SHA. Continue to runbook 03 only after `GLUE-025` is reviewed and its personal-account live-validation sequence succeeds.
+After success, retain the recorded Git SHA and continue to [03 — Configure and Verify AWS Glue](03-CONFIGURE-GLUE.md).
 
 ## Manual EC2 diagnostic path
 
@@ -350,14 +358,17 @@ No new input is required.
 **Command**
 
 ```bash
-make local-test
-make local-test
-rm -f .env
+(
+  set -euo pipefail
+  trap 'rm -f .env' EXIT
+  make local-test
+  make local-test
+)
 ```
 
 **Expected result**
 
-Both test runs preserve the deterministic counts: 5 total orders, 4 active orders, 9 total items, and 7 active items belonging to active orders. Four invalid fixtures are rejected. MongoDB authenticates as the lab writer and reports zero order documents. The final line of each run is `local data assertions: PASS`; the temporary `.env` is then deleted immediately.
+Both test runs preserve the deterministic counts: 5 total orders, 4 active orders, 9 total items, and 7 active items belonging to active orders. Four invalid fixtures are rejected. MongoDB authenticates as the lab writer and reports zero order documents. The final line of each run is `local data assertions: PASS`; the EXIT trap deletes the temporary `.env` after success or failure.
 
 **Verify**
 
@@ -404,23 +415,29 @@ Repeat Step 2 to create a fresh mode-`0600` `.env` from Secrets Manager for this
 **Command**
 
 ```bash
-make local-down
-make local-up
-make local-test
-rm -f .env
+(
+  set -euo pipefail
+  trap 'rm -f .env' EXIT
+  make local-down
+  make local-up
+  make local-test
+  make local-status
+)
 ```
 
 **Expected result**
 
-Only the project containers stop and restart. The two named volumes remain. Both containers return to healthy state, and all assertions pass with unchanged counts.
+Only the project containers stop and restart. The two named volumes remain. Both containers return to healthy state, all assertions pass with unchanged counts, status is checked while `.env` is available, and the EXIT trap then removes `.env`.
 
 **Verify**
 
 ```bash
-make local-status
+test ! -e .env
+docker ps --filter label=com.docker.compose.project=aws-glue-postgres-mongodb-lab \
+  --format '{{.Names}} {{.Status}}'
 ```
 
-Pass: both services are healthy after the restart.
+Pass: `.env` is absent and both project containers report a healthy status after the restart.
 
 **Repeat, reset, or rollback**
 
@@ -428,7 +445,7 @@ Safe to repeat. This path never removes volumes.
 
 **If it fails**
 
-Run `docker compose --env-file .env -f docker/compose.yaml logs --tail=100 postgres mongodb`, correct the failing service, and repeat the complete command block.
+Repeat Step 2 to recreate `.env`, run `docker compose --env-file .env -f docker/compose.yaml logs --tail=100 postgres mongodb`, and correct the failing service. Then repeat this complete step; the EXIT trap removes `.env` even when a command fails.
 
 **Next**
 
@@ -452,32 +469,34 @@ Remove only this project’s containers and named volumes, then rebuild from the
 
 **Inputs**
 
-Set the explicit reset flag only for this command:
-
-```bash
-export RESET_VOLUMES=1
-```
+No persistent shell variable is exported. The explicit `RESET_VOLUMES=1` approval is scoped to the single destructive `make local-down` command below.
 
 **Command**
 
 ```bash
-make local-down RESET_VOLUMES=1
-make local-up
-make local-test
-rm -f .env
+(
+  set -euo pipefail
+  trap 'rm -f .env' EXIT
+  make local-down RESET_VOLUMES=1
+  make local-up
+  make local-test
+  make local-status
+)
 ```
 
 **Expected result**
 
-Compose removes only the fixed project’s containers, network, and two named volumes. Startup recreates the schema and deterministic fixtures, and all assertions pass.
+Compose removes only the fixed project’s containers, network, and two named volumes. Startup recreates the schema and deterministic fixtures, all assertions pass, status is checked while `.env` is available, and the EXIT trap then removes `.env`.
 
 **Verify**
 
 ```bash
-make local-status
+test ! -e .env
+docker ps --filter label=com.docker.compose.project=aws-glue-postgres-mongodb-lab \
+  --format '{{.Names}} {{.Status}}'
 ```
 
-Pass: both newly created services are healthy.
+Pass: `.env` is absent and both newly created project containers report a healthy status.
 
 **Repeat, reset, or rollback**
 
@@ -509,7 +528,8 @@ Exercise the exact Compose data layer locally without AWS resources.
 
 - `docker version` and `docker compose version` succeed.
 - Ports `5432` and `27017` are free on `127.0.0.1`.
-- The repository branch contains the reviewed GLUE-010 files.
+- `test ! -e .env` succeeds; stop and preserve an existing `.env` rather than overwriting it.
+- The repository branch contains the current reviewed data-layer files.
 
 **Inputs**
 
@@ -518,7 +538,8 @@ No secret value is supplied manually. Python generates three disposable random v
 **Command**
 
 ```bash
-cp .env.example .env
+test ! -e .env
+install -m 600 .env.example .env
 python3 - <<'PY'
 from pathlib import Path
 import secrets
@@ -536,7 +557,6 @@ for line in path.read_text().splitlines():
     values.append(f"{key}{separator}{value}")
 path.write_text("\n".join(values) + "\n")
 PY
-chmod 600 .env
 make compose-check
 make local-up
 make local-test
@@ -544,7 +564,7 @@ make local-test
 
 **Expected result**
 
-Both containers become healthy and the final command prints `local data assertions: PASS`.
+If `.env` already exists, the first command stops without changing it. Otherwise both containers become healthy and the final command prints `local data assertions: PASS`.
 
 **Verify**
 

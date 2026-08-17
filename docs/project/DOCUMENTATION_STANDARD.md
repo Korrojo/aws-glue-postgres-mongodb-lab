@@ -77,7 +77,7 @@ List observable conditions, not vague dependencies. Examples:
 Define every value the reader must supply. Prefer a preceding export command over angle-bracket placeholders scattered through commands.
 
 ```bash
-export AWS_PROFILE="personal-lab"
+export AWS_PROFILE="personal-glue-lab"
 export AWS_REGION="us-east-1"
 ```
 
@@ -256,11 +256,11 @@ Acceptable pattern:
 
 **Run from:** Mac Mini terminal — repository root
 
-**Prerequisites:** AWS CLI v2 is installed and the `personal-lab` profile exists.
+**Prerequisites:** AWS CLI v2 is installed and the `personal-glue-lab` profile exists.
 
 **Command:**
 
-    export AWS_PROFILE="personal-lab"
+    export AWS_PROFILE="personal-glue-lab"
     export AWS_REGION="us-east-1"
     aws sts get-caller-identity --profile "$AWS_PROFILE"
 
@@ -272,4 +272,3 @@ Acceptable pattern:
 
 **If it fails:** Run `aws configure list --profile "$AWS_PROFILE"`. Correct the profile credentials, then repeat the command.
 ```
-
