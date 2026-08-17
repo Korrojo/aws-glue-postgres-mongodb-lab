@@ -10,7 +10,7 @@
 
 `DONE` means the reviewed implementation and credential-free development checks are complete. Live AWS execution is not a task status or agent acceptance gate; it is user-run only.
 
-Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`. `GLUE-070` was delivered in [PR #8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) and is now `DONE`. `GLUE-080` was delivered in [PR #10](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/10) and is now `DONE`. `GLUE-090` is under review in [PR #12](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/12).
+Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`. `GLUE-070` was delivered in [PR #8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) and is now `DONE`. `GLUE-080` was delivered in [PR #10](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/10) and is now `DONE`. `GLUE-090` was delivered in [PR #12](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/12) and is now `DONE`. `GLUE-100` is under review in [PR #13](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/13); `GLUE-110` is the final planned runbook-completeness task.
 
 ## Credential-free development acceptance
 
@@ -30,7 +30,9 @@ Agents must never request or use AWS credentials or execute any AWS command. Sta
 | `GLUE-060` | DONE | [#6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) | `GLUE-050` | Runbook, cleanup proof, final release |
 | `GLUE-070` | DONE | [#8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) | `GLUE-060` | First-time prerequisite onboarding and explanations |
 | `GLUE-080` | DONE | [#10](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/10) | `GLUE-070` | Consistent AWS CLI profile naming across runbooks |
-| `GLUE-090` | PR OPEN | [#12](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/12) | `GLUE-080` | Make runbooks 01–02 executable and beginner-safe |
+| `GLUE-090` | DONE | [#12](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/12) | `GLUE-080` | Make runbooks 01–02 executable and beginner-safe |
+| `GLUE-100` | PR OPEN | [#13](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/13) | `GLUE-090` | Make runbooks 03–04 executable and beginner-safe |
+| `GLUE-110` | NOT STARTED | — | `GLUE-100` | Complete runbooks 05–07 and final consistency review |
 
 ## `GLUE-000` — Governance and repository skeleton
 
@@ -339,3 +341,52 @@ PR grouping: one bounded runbook and command-contract correction PR
 - Runbooks 01–02 contain no stale task gate, unsafe `.env` overwrite, or unexplained verification handoff.
 - Required credential-free checks pass without AWS credentials or AWS calls.
 - No infrastructure, application, or architecture change is introduced.
+
+## `GLUE-100` — Make runbooks 03–04 executable and beginner-safe
+
+Branch: `agent/hermes-codex/glue-100-runbook-03-04-usability`
+
+PR grouping: one bounded runbook and documentation-contract correction PR
+
+### To-do
+
+- [x] Explain Glue connections, crawler, Data Catalog tables, and the job at their first point of use.
+- [x] Require an observable personal-account identity check before Glue operations.
+- [x] Verify both connection definitions without exposing connection-property values.
+- [x] Make crawler failure diagnosis independently copyable after verification cleanup.
+- [x] Use the repository virtual environment for local transformation checks.
+- [x] Provide an exact profile- and Region-scoped Glue error-log command.
+- [x] Strengthen Session Manager host verification and temporary secret cleanup evidence.
+- [x] Remove stale roadmap guidance and add credential-free regression coverage.
+
+### Acceptance
+
+- A first-time reader can distinguish a Glue connection, crawler, Data Catalog table, and job before running them.
+- Every user-run AWS step has exact inputs, expected output, a pass condition, and diagnose-correct-retry guidance.
+- Connection verification checks type, shared subnet/security group, secret reference, and absence of inline username/password keys without printing values.
+- Local Spark checks use the repository virtual environment and remain credential-free.
+- MongoDB inspection keeps credentials inside one subshell and proves cleanup before reporting success.
+- Required credential-free checks pass without AWS credentials or AWS calls.
+- No infrastructure, application, or architecture change is introduced.
+
+## `GLUE-110` — Complete runbooks 05–07 and final consistency review
+
+Branch: `agent/hermes-codex/glue-110-runbook-05-07-usability`
+
+PR grouping: one final runbook-completeness PR
+
+### To-do
+
+- [ ] Improve point-of-use explanations and command contracts in runbooks 05–07.
+- [ ] Explain reconciliation invariants, deterministic reruns, stale-target handling, destroy planning, and troubleshooting for a first-time reader.
+- [ ] Perform a final cross-runbook sequence, terminology, profile, safety, and link audit.
+- [ ] Add credential-free regression coverage for corrected documentation contracts.
+- [ ] Mark the runbook-improvement sequence complete only after required checks pass.
+
+### Acceptance
+
+- Runbooks 00–07 form one consistent prerequisite-to-destroy learning path without undocumented transitions.
+- Validation, rerun, destroy, and troubleshooting steps satisfy `DOCUMENTATION_STANDARD.md`.
+- User-run AWS evidence remains separate from credential-free development acceptance.
+- Required credential-free checks pass without AWS credentials or AWS calls.
+- No production architecture, new AWS resource, or unrelated cleanup is introduced.
