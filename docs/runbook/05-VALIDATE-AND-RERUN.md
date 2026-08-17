@@ -1,11 +1,20 @@
 # 05 — Reconcile and Test Rerun Behavior
 
-Owner: `GLUE-050`  
+Owner: `GLUE-050`; usability correction by `GLUE-110`
 Status: implementation complete
 
 > **User-run only:** Every AWS, SSM, Glue, PostgreSQL, and MongoDB operation in this runbook is executed only by the user from a completed reviewed clone. Agents never request or use AWS credentials and never run these targets. Credential-free unit and fake-boundary tests are development acceptance; user-run output is optional evidence and must be redacted.
 
 Order count alone is insufficient: one order can contain the wrong items, wrong exact total, wrong order, or unnormalized values while counts still agree. `validation/reconcile.py` therefore compares active order/document count, active item/embedded count, keys, per-order item count and exact `Decimal` totals, line ordering, normalized customer/status/timestamps, migration metadata, and deleted entities. It projects at most 100 orders and 1,000 items, uses only Python's standard library, and never emits a full record.
+
+The two global invariants are:
+
+```text
+O = D
+I = A
+```
+
+`O` is the number of active PostgreSQL orders, `D` is the number of MongoDB order documents, `I` is the number of active items belonging to active orders, and `A` is the total number of embedded MongoDB items. The first equality catches missing or extra order documents; the second catches missing or extra embedded items. Per-order key, item-count, ordering, normalization, and exact-total checks then prove that matching global counts did not hide a misplaced or incorrectly transformed row.
 
 The EC2 reader retrieves only `/aws-glue-postgres-mongodb-lab/postgres` and `/aws-glue-postgres-mongodb-lab/mongodb-glue` at runtime. Credentials travel through process memory and stdin to `psql`/`mongosh`; they never appear in command arguments or output. The exact Compose identities are `aws-glue-postgres-mongodb-lab-postgres-1` and `aws-glue-postgres-mongodb-lab-mongodb-1`.
 
@@ -26,6 +35,7 @@ Stop before AWS if the checkout, local tests, deployed revision, or personal-pro
 - PostgreSQL and MongoDB are healthy on the one SSM-managed EC2 host.
 - The exact local Terraform state from the apply remains present.
 - The repository is clean and checked out at the deployed reviewed revision.
+- `.venv/bin/ruff` and `.venv/bin/pytest` exist from the local-test setup in runbook 00.
 
 **Inputs**
 
@@ -38,6 +48,7 @@ unset AWS_ENDPOINT_URL
 unset TF_WORKSPACE TF_DATA_DIR TF_CLI_ARGS TF_CLI_ARGS_plan TF_CLI_ARGS_apply
 export AWS_PROFILE="personal-glue-lab"
 export AWS_REGION="us-east-1"
+export AWS_DEFAULT_REGION="$AWS_REGION"
 ```
 
 `AWS_PROFILE` is the user's intended personal profile. Any `AWS_ENDPOINT_URL_*` variable must also be unset; the scripts reject even an empty endpoint override.
@@ -45,15 +56,22 @@ export AWS_REGION="us-east-1"
 **Command**
 
 ```bash
+(
+set -euo pipefail
 test "$(pwd -P)" = "$(git rev-parse --show-toplevel)"
 test -z "$(git status --short)"
 test -f infrastructure/terraform/terraform.tfstate
-make format-check && make lint && make unit-test
+test -x .venv/bin/ruff
+test -x .venv/bin/pytest
+make format-check RUFF=.venv/bin/ruff
+make lint RUFF=.venv/bin/ruff
+make unit-test PYTEST=.venv/bin/pytest
+)
 ```
 
 **Expected result**
 
-Every command exits `0`; the credential-free suite includes exact reconciliation and fake service-boundary tests. No AWS call occurs in this step.
+Every command exits `0`; the credential-free suite runs through the reviewed repository virtual environment and includes exact reconciliation and fake service-boundary tests. No AWS call occurs in this step.
 
 **Verify**
 
@@ -70,7 +88,9 @@ Safe to repeat. A dirty checkout, missing state, wrong workspace, wrong account,
 
 **If it fails**
 
-Use `git status --short` for checkout drift and `terraform -chdir=infrastructure/terraform workspace show` for workspace drift. Return to the exact reviewed clone/state rather than reconstructing or overriding identity.
+- Missing `.venv` tools: return to runbook 00's local-test setup, install the pinned dependencies, and repeat Step 1.
+- Checkout drift: run `git status --short`, preserve any intentional work, and return to the exact reviewed revision before retrying.
+- Workspace drift: run `terraform -chdir=infrastructure/terraform workspace show` and return to the original `default` workspace/state rather than reconstructing or overriding identity.
 
 **Next**
 
@@ -110,6 +130,7 @@ The command exits `0` only when the EC2 checkout is clean and its `HEAD` exactly
 ```bash
 INSTANCE_ID="$(terraform -chdir=infrastructure/terraform output -raw database_instance_id)"
 aws ssm start-session --target "$INSTANCE_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+unset INSTANCE_ID
 ```
 
 Inside the SSM session:
@@ -179,6 +200,8 @@ rerun-test: PASS (unchanged, replacement, stale detection/resolution, reset)
 ```
 
 The unchanged comparison uses only document/item counts plus a SHA-256 of bounded projected business data. The controlled update changes order `1001` status and item `5002` quantity, then reconciliation proves replacement. The soft-delete phase deliberately observes reconciliation exit `1` with `stale_target` and `deleted_order_present`; the orchestration accepts that one expected failure only after inspecting the redacted artifact. Resolution executes exactly `deleteOne({_id: 1003})`. It never clears the collection, performs a destructive preload, or claims CDC/deletion convergence.
+
+The counts prove that rerunning did not add or lose orders/items. The fingerprint proves that unchanged projected business content stayed identical even when counts alone would still match. The controlled update must change the fingerprint, and the final reset must restore the original fingerprint.
 
 **Verify — User-run only**
 

@@ -10,7 +10,7 @@
 
 `DONE` means the reviewed implementation and credential-free development checks are complete. Live AWS execution is not a task status or agent acceptance gate; it is user-run only.
 
-Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`. `GLUE-070` was delivered in [PR #8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) and is now `DONE`. `GLUE-080` was delivered in [PR #10](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/10) and is now `DONE`. `GLUE-090` was delivered in [PR #12](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/12) and is now `DONE`. `GLUE-100` is under review in [PR #13](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/13); `GLUE-110` is the final planned runbook-completeness task.
+Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`. `GLUE-070` was delivered in [PR #8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) and is now `DONE`. `GLUE-080` was delivered in [PR #10](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/10) and is now `DONE`. `GLUE-090` was delivered in [PR #12](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/12) and is now `DONE`. `GLUE-100` was delivered in [PR #13](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/13) and is now `DONE`. `GLUE-110` is the sole task currently `IN PROGRESS` and completes the planned runbook-usability sequence.
 
 ## Credential-free development acceptance
 
@@ -31,8 +31,8 @@ Agents must never request or use AWS credentials or execute any AWS command. Sta
 | `GLUE-070` | DONE | [#8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) | `GLUE-060` | First-time prerequisite onboarding and explanations |
 | `GLUE-080` | DONE | [#10](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/10) | `GLUE-070` | Consistent AWS CLI profile naming across runbooks |
 | `GLUE-090` | DONE | [#12](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/12) | `GLUE-080` | Make runbooks 01–02 executable and beginner-safe |
-| `GLUE-100` | PR OPEN | [#13](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/13) | `GLUE-090` | Make runbooks 03–04 executable and beginner-safe |
-| `GLUE-110` | NOT STARTED | — | `GLUE-100` | Complete runbooks 05–07 and final consistency review |
+| `GLUE-100` | DONE | [#13](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/13) | `GLUE-090` | Make runbooks 03–04 executable and beginner-safe |
+| `GLUE-110` | IN PROGRESS | — | `GLUE-100` | Complete runbooks 05–07 and final consistency review |
 
 ## `GLUE-000` — Governance and repository skeleton
 
@@ -377,11 +377,11 @@ PR grouping: one final runbook-completeness PR
 
 ### To-do
 
-- [ ] Improve point-of-use explanations and command contracts in runbooks 05–07.
-- [ ] Explain reconciliation invariants, deterministic reruns, stale-target handling, destroy planning, and troubleshooting for a first-time reader.
-- [ ] Perform a final cross-runbook sequence, terminology, profile, safety, and link audit.
-- [ ] Add credential-free regression coverage for corrected documentation contracts.
-- [ ] Mark the runbook-improvement sequence complete only after required checks pass.
+- [x] Improve point-of-use explanations and command contracts in runbooks 05–07.
+- [x] Explain reconciliation invariants, deterministic reruns, stale-target handling, destroy planning, and troubleshooting for a first-time reader.
+- [x] Perform a final cross-runbook sequence, terminology, profile, safety, and link audit.
+- [x] Add credential-free regression coverage for corrected documentation contracts.
+- [x] Mark the runbook-improvement sequence complete only after required checks pass.
 
 ### Acceptance
 

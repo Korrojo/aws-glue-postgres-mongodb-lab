@@ -405,7 +405,7 @@ def test_release_runbooks_and_status_have_no_owned_deferred_markers() -> None:
         assert f"| `{task}` | DONE | [#6]" in road
     assert "PR #6 PLACEHOLDER" not in road
     assert "PR #6 PLACEHOLDER" not in readme
-    assert "[PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6)" in readme
+    assert "[#6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6)" in readme
     for name in (
         "05-VALIDATE-AND-RERUN.md",
         "06-DESTROY.md",
