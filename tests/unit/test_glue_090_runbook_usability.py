@@ -132,6 +132,6 @@ def test_beginner_paths_have_current_profile_and_ssm_guidance() -> None:
 def test_roadmap_tracks_the_bounded_glue_090_task() -> None:
     roadmap = (ROOT / "docs/project/ROADMAP.md").read_text()
 
-    assert "| `GLUE-090` | IN PROGRESS |" in roadmap
+    assert "| `GLUE-090` | PR OPEN | [#12]" in roadmap
     assert "agent/hermes-codex/glue-090-runbook-01-02-usability" in roadmap
     assert "Make runbooks 01–02 executable and beginner-safe" in roadmap

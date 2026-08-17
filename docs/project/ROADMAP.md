@@ -10,7 +10,7 @@
 
 `DONE` means the reviewed implementation and credential-free development checks are complete. Live AWS execution is not a task status or agent acceptance gate; it is user-run only.
 
-Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`. `GLUE-070` was delivered in [PR #8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) and is now `DONE`. `GLUE-080` was delivered in [PR #10](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/10) and is now `DONE`. `GLUE-090` is the sole task currently `IN PROGRESS`.
+Only one task may be `IN PROGRESS` unless Hermes proves that file ownership and dependencies do not overlap. `GLUE-050` and `GLUE-060` were delivered together in [PR #6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) and are now `DONE`. `GLUE-070` was delivered in [PR #8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) and is now `DONE`. `GLUE-080` was delivered in [PR #10](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/10) and is now `DONE`. `GLUE-090` is under review in [PR #12](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/12).
 
 ## Credential-free development acceptance
 
@@ -30,7 +30,7 @@ Agents must never request or use AWS credentials or execute any AWS command. Sta
 | `GLUE-060` | DONE | [#6](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/6) | `GLUE-050` | Runbook, cleanup proof, final release |
 | `GLUE-070` | DONE | [#8](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/8) | `GLUE-060` | First-time prerequisite onboarding and explanations |
 | `GLUE-080` | DONE | [#10](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/10) | `GLUE-070` | Consistent AWS CLI profile naming across runbooks |
-| `GLUE-090` | IN PROGRESS | — | `GLUE-080` | Make runbooks 01–02 executable and beginner-safe |
+| `GLUE-090` | PR OPEN | [#12](https://github.com/Korrojo/aws-glue-postgres-mongodb-lab/pull/12) | `GLUE-080` | Make runbooks 01–02 executable and beginner-safe |
 
 ## `GLUE-000` — Governance and repository skeleton
 
