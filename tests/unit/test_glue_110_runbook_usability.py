@@ -17,10 +17,10 @@ def test_roadmap_and_readme_track_the_final_documentation_task() -> None:
     readme = (ROOT / "README.md").read_text()
 
     assert "| `GLUE-100` | DONE | [#13]" in roadmap
-    assert "| `GLUE-110` | PR OPEN | [#14]" in roadmap
+    assert "| `GLUE-110` | DONE | [#14]" in roadmap
     assert "agent/hermes-codex/glue-110-runbook-05-07-usability" in roadmap
-    assert "GLUE-070` through `GLUE-100`" in readme
-    assert "GLUE-110" in readme
+    assert "GLUE-070` through `GLUE-110`" in readme
+    assert "planned implementation and runbook-usability roadmap is complete" in readme
 
 
 def test_validation_runbook_explains_invariants_and_uses_exact_local_tools() -> None:
